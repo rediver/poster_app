@@ -1,4 +1,4 @@
-from flask import Flask, redirect, request, session, url_for, render_template, jsonify, send_file
+from flask import Flask, redirect, request, session, url_for, jsonify, send_file
 import os
 import io
 import base64
@@ -40,7 +40,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 CORS(
     app,
     supports_credentials=True,
-    resources={r"/*": {"origins": [FRONTEND_URL]}},
+    resources={r"/api/*": {"origins": [FRONTEND_URL]}},
 )
 
 # Configure loguru logger to use JSON format
@@ -75,15 +75,17 @@ if DATABASE_URL:
 else:
     logger.warning("DATABASE_URL not set; admin features disabled")
 
-@app.route('/')
-def home():
-    logger.debug(f"🔍 Session contents: {session}")
-    if 'strava_access_token' in session:
-        return render_template('index.html', mapbox_token=MAPBOX_ACCESS_TOKEN)
-    else:
-        return redirect(url_for('auth_strava'))
+@app.route('/', methods=['GET'])
+def root():
+    # API-only mode: frontend is a separate React app
+    return ("", 204)
 
-@app.route('/auth/strava')
+# Silence favicon requests to avoid noisy logs
+@app.route('/favicon.ico')
+def favicon():
+    return ("", 204)
+
+@app.route('/api/auth/strava')
 def auth_strava():
     logger.debug("🔐 Redirecting to Strava authorization URL...")
     auth_url = (f"https://www.strava.com/oauth/authorize?client_id={STRAVA_CLIENT_ID}"
@@ -91,7 +93,7 @@ def auth_strava():
                 f"&scope=read,activity:read")
     return redirect(auth_url)
 
-@app.route('/auth/strava/callback')
+@app.route('/api/auth/strava/callback')
 def strava_callback():
     code = request.args.get('code')
     logger.debug(f"🔑 Received code from Strava: {code}")
@@ -110,7 +112,7 @@ def strava_callback():
         return redirect(f"{redirect_url}#strava=authenticated")
     return "Authentication failed", 400
 
-@app.route('/strava/activities')
+@app.route('/api/strava/activities')
 def activities():
     try:
         logger.debug("Fetching activities from Strava.")
@@ -121,7 +123,7 @@ def activities():
         logger.error(f"Error fetching activities: {e}")
         return jsonify({'error': 'Failed to fetch activities from Strava'}), 500
 
-@app.route('/strava/download_gpx/<activity_id>')
+@app.route('/api/strava/download_gpx/<activity_id>')
 def download_gpx(activity_id):
     try:
         streams = get_activity_streams(activity_id)
@@ -130,20 +132,16 @@ def download_gpx(activity_id):
         logger.error(f"Error downloading GPX for activity ID {activity_id}: {e}")
         return jsonify({'error': 'Failed to download GPX'}), 500
 
-@app.route('/activity/<activity_id>')
-def activity(activity_id):
-    logger.debug(f"Rendering activity page for activity ID: {activity_id}")
-    return render_template('activity.html', activity_id=activity_id, mapbox_token=MAPBOX_ACCESS_TOKEN)
 
-@app.route('/logout', methods=['POST'])
+@app.route('/api/logout', methods=['POST'])
 def logout():
     logger.debug(f"🔍 Before clearing session: {session}")
     session.clear()
     logger.debug("🧹 Session cleared. Logged out.")
     logger.debug(f"🔍 After clearing session: {session}")
-    return redirect(url_for('home'))
+    return ("", 204)
 
-@app.route('/export_poster', methods=['POST'])
+@app.route('/api/export_poster', methods=['POST'])
 def export_poster():
     """
     Accepts JSON payload with fields:
@@ -190,7 +188,7 @@ def export_poster():
         logger.exception("Error exporting poster")
         return jsonify({"error": "Failed to export poster"}), 500
 
-@app.route('/export_poster_composed', methods=['POST'])
+@app.route('/api/export_poster_composed', methods=['POST'])
 def export_poster_composed():
     """
     Server-side composition of a poster that includes a Mapbox Static Image background
@@ -422,7 +420,7 @@ def export_poster_composed():
         logger.exception("Error during server-side poster composition")
         return jsonify({"error": "Failed to compose poster on server"}), 500
 
-@app.route('/save_poster_composed', methods=['POST'])
+@app.route('/api/save_poster_composed', methods=['POST'])
 def save_poster_composed():
     try:
         if not conn:
@@ -586,19 +584,19 @@ def save_poster_composed():
         logger.exception("Error saving poster")
         return jsonify({"error": "Failed to save poster"}), 500
 
-@app.route('/generated/<filename>')
+@app.route('/api/generated/<filename>')
 def serve_generated(filename):
     return send_file(os.path.join(GENERATED_DIR, filename))
 
-@app.route('/poster/<int:poster_id>')
+@app.route('/api/poster/<int:poster_id>')
 def poster_confirm(poster_id):
     if not conn:
-        return "DB not configured", 500
+        return jsonify({"error": "DB not configured"}), 500
     with conn.cursor() as cur:
         cur.execute("SELECT id, user_name, image_path, params, created_at FROM posters WHERE id=%s", (poster_id,))
         row = cur.fetchone()
     if not row:
-        return "Not found", 404
+        return jsonify({"error": "Not found"}), 404
     data = {
         'id': row[0],
         'user_name': row[1],
@@ -606,30 +604,28 @@ def poster_confirm(poster_id):
         'params': row[3],
         'created_at': row[4]
     }
-    return render_template('confirm.html', poster=data)
+    return jsonify(data)
 
-# Admin
-@app.route('/admin/login', methods=['GET','POST'])
+# Admin (API-only)
+@app.route('/api/admin/login', methods=['POST'])
 def admin_login():
-    if request.method == 'POST':
-        pwd = request.form.get('password')
-        if pwd == ADMIN_PASSWORD:
-            session['admin'] = True
-            return redirect(url_for('admin_posters'))
-        return render_template('admin_login.html', error='Invalid password')
-    return render_template('admin_login.html')
+    pwd = request.json.get('password') if request.is_json else request.form.get('password')
+    if pwd == ADMIN_PASSWORD:
+        session['admin'] = True
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "Invalid password"}), 401
 
-@app.route('/admin/logout')
+@app.route('/api/admin/logout', methods=['POST'])
 def admin_logout():
     session.pop('admin', None)
-    return redirect(url_for('admin_login'))
+    return ("", 204)
 
-@app.route('/admin/posters')
+@app.route('/api/admin/posters')
 def admin_posters():
     if not session.get('admin'):
-        return redirect(url_for('admin_login'))
+        return jsonify({"error": "unauthorized"}), 401
     if not conn:
-        return "DB not configured", 500
+        return jsonify({"error": "DB not configured"}), 500
     with conn.cursor() as cur:
         cur.execute("SELECT id, user_name, image_path, params::text, created_at FROM posters ORDER BY created_at DESC")
         rows = cur.fetchall()
@@ -637,7 +633,12 @@ def admin_posters():
         { 'id': r[0], 'user_name': r[1], 'image_path': r[2], 'params': json.loads(r[3]), 'created_at': r[4] }
         for r in rows
     ]
-    return render_template('admin_posters.html', posters=posters)
+    return jsonify({"posters": posters})
+
+# Health check for API-only use
+@app.route('/api/health')
+def health():
+    return jsonify(status="ok")
 
 if __name__ == '__main__':
     app.run(debug=True)
