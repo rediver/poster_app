@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from loguru import logger
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 from werkzeug.utils import secure_filename
+from flask_cors import CORS
 from strava import (
     get_strava_access_token,
     get_strava_activities,
@@ -33,6 +34,14 @@ STRAVA_REDIRECT_URI = os.getenv("STRAVA_REDIRECT_URI")
 MAPBOX_ACCESS_TOKEN = os.getenv("MAPBOX_ACCESS_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")  # e.g. postgres://user:pass@host:5432/db
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+# Enable CORS for the frontend, allowing cookies (session) to be sent
+CORS(
+    app,
+    supports_credentials=True,
+    resources={r"/*": {"origins": [FRONTEND_URL]}},
+)
 
 # Configure loguru logger to use JSON format
 logger.add("debug.log", format="{time} {level} {message}", level="DEBUG", serialize=True)
@@ -95,7 +104,10 @@ def strava_callback():
                 'id': athlete.get('id'),
                 'username': athlete.get('username') or athlete.get('firstname') or 'unknown'
             }
-        return redirect(url_for('home'))
+        # After successful auth, redirect back to frontend, which can then fetch data via API
+        redirect_url = os.getenv("FRONTEND_URL", FRONTEND_URL)
+        # Add a hash so the SPA can detect auth success
+        return redirect(f"{redirect_url}#strava=authenticated")
     return "Authentication failed", 400
 
 @app.route('/strava/activities')

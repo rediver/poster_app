@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { logModule, useLogMount } from '../src/debug';
 logModule('components/StravaActivitiesScreen.tsx module');
 import { Button } from './ui/button';
@@ -8,9 +8,20 @@ import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
 import { MapPin, Clock, Calendar } from 'lucide-react';
 
-interface Activity {
+interface ActivityApi {
+  id: number;
+  type: string; // 'Run' | 'Ride' | 'Walk' | ...
+  name: string;
+  distance: number; // meters
+  moving_time?: number; // seconds
+  elapsed_time?: number; // seconds
+  start_date: string; // ISO
+  total_elevation_gain?: number; // meters
+}
+
+interface ActivityItem {
   id: string;
-  type: 'Run' | 'Bike' | 'Hike';
+  type: 'Run' | 'Ride' | 'Walk' | 'Hike' | string;
   name: string;
   distance: string;
   duration: string;
@@ -25,61 +36,60 @@ interface StravaActivitiesScreenProps {
 export function StravaActivitiesScreen({ onActivitySelected }: StravaActivitiesScreenProps) {
   useLogMount('StravaActivitiesScreen');
   const [selectedActivity, setSelectedActivity] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || '';
 
-  // Mock Strava activities data
-  const activities: Activity[] = [
-    {
-      id: '1',
-      type: 'Run',
-      name: 'Morning run',
-      distance: '6.18 km',
-      duration: '32:15',
-      date: 'Dec 15',
-      elevation: '45m'
-    },
-    {
-      id: '2',
-      type: 'Run',
-      name: 'Morning run',
-      distance: '5.24 km',
-      duration: '28:42',
-      date: 'Dec 14',
-      elevation: '32m'
-    },
-    {
-      id: '3',
-      type: 'Bike',
-      name: 'Morning ride',
-      distance: '52.24 km',
-      duration: '1:45:30',
-      date: 'Dec 13',
-      elevation: '234m'
-    },
-    {
-      id: '4',
-      type: 'Run',
-      name: 'Morning run',
-      distance: '6.18 km',
-      duration: '31:48',
-      date: 'Dec 12',
-      elevation: '41m'
-    },
-    {
-      id: '5',
-      type: 'Bike',
-      name: 'Evening ride',
-      distance: '31.23 km',
-      duration: '1:12:20',
-      date: 'Dec 11',
-      elevation: '156m'
-    }
-  ];
+  useEffect(() => {
+    const fetchActivities = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetch(`${BACKEND_URL}/strava/activities`, {
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          throw new Error(`Failed to fetch activities (${res.status})`);
+        }
+        const data = await res.json();
+        const apiActs: ActivityApi[] = data.activities || [];
+        // Only Run or Ride per requirements
+        const filtered = apiActs.filter(a => a.type === 'Run' || a.type === 'Ride');
+        const fmt = (m: number) => `${(m / 1000).toFixed(2)} km`;
+        const fmtTime = (s: number | undefined) => {
+          if (!s) return '';
+          const h = Math.floor(s / 3600);
+          const m = Math.floor((s % 3600) / 60);
+          const sec = s % 60;
+          return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}` : `${m}:${String(sec).padStart(2,'0')}`;
+        };
+        const items: ActivityItem[] = filtered.map(a => ({
+          id: String(a.id),
+          type: a.type,
+          name: a.name,
+          distance: fmt(a.distance || 0),
+          duration: fmtTime(a.moving_time || a.elapsed_time),
+          date: new Date(a.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+          elevation: `${Math.round(a.total_elevation_gain || 0)} m`,
+        }));
+        setActivities(items);
+      } catch (e: any) {
+        setError(e.message || 'Unknown error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchActivities();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const getActivityColor = (type: string) => {
+
+const getActivityColor = (type: string) => {
     switch (type) {
       case 'Run':
         return 'bg-orange-100 text-orange-700 border-orange-200';
-      case 'Bike':
+      case 'Ride':
         return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'Hike':
         return 'bg-green-100 text-green-700 border-green-200';
@@ -128,7 +138,11 @@ export function StravaActivitiesScreen({ onActivitySelected }: StravaActivitiesS
               </p>
             </div>
 
-            <RadioGroup value={selectedActivity} onValueChange={setSelectedActivity}>
+            {loading && <div className="text-sm text-muted-foreground">Loading activities...</div>}
+            {error && !loading && <div className="text-sm text-red-500">{error}</div>}
+
+            {!loading && !error && (
+              <RadioGroup value={selectedActivity} onValueChange={setSelectedActivity}>
               <div className="space-y-3">
                 {activities.map((activity) => (
                   <div key={activity.id} className="relative">
@@ -179,7 +193,8 @@ export function StravaActivitiesScreen({ onActivitySelected }: StravaActivitiesS
                   </div>
                 ))}
               </div>
-            </RadioGroup>
+              </RadioGroup>
+            )}
 
             <Button 
               onClick={handleContinue}

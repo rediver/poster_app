@@ -12,6 +12,7 @@ interface DataImportScreenProps {
 
 export function DataImportScreen({ onStravaSelected, onGpxImported }: DataImportScreenProps) {
   useLogMount('DataImportScreen');
+  const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || '';
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && file.name.endsWith('.gpx')) {
@@ -57,7 +58,11 @@ export function DataImportScreen({ onStravaSelected, onGpxImported }: DataImport
             </div>
 
             <div className="space-y-4">
-              <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={onStravaSelected}>
+<Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => {
+                  // Start Strava OAuth on the backend; it will redirect back to FRONTEND_URL on success
+                  const base = BACKEND_URL || '';
+                  window.location.href = `${base}/auth/strava`;
+                }}>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-orange-500 rounded flex items-center justify-center">

@@ -24,6 +24,14 @@ type AppScreen = 'import' | 'strava-activities' | 'editor' | 'summary';
 export default function App() {
   useLogMount('App component');
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('import');
+  // Detect auth callback from backend
+  React.useEffect(() => {
+    if (window.location.hash.includes('strava=authenticated')) {
+      setCurrentScreen('strava-activities');
+      // Clean hash so refreshes don't re-trigger
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, []);
   const [config, setConfig] = useState<PosterConfig>({
     title: 'Helvetica',
     subtitle: 'A neo-grotesque or realist design, one of the most popular typefaces in the world',
