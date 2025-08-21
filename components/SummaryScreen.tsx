@@ -82,23 +82,8 @@ export function SummaryScreen({ config, onBack }: SummaryScreenProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Browser-like header */}
-      <div className="bg-white border-b border-gray-200 p-3">
-        <div className="flex items-center space-x-2 max-w-lg">
-          <div className="flex space-x-1">
-            <div className="w-3 h-3 rounded-full bg-red-400"></div>
-            <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-            <div className="w-3 h-3 rounded-full bg-green-400"></div>
-          </div>
-          <div className="flex-1 bg-gray-100 rounded px-3 py-1 text-sm text-gray-600">
-            www.url.com
-          </div>
-          <div className="w-6 h-6 bg-gray-200 rounded"></div>
-        </div>
-      </div>
-
       {/* Main content */}
-      <div className="flex min-h-[calc(100vh-60px)]">
+      <div className="flex min-h-screen">
         {/* Left side - Large Poster Preview */}
         <div className="flex-1 bg-white border-r border-gray-200 flex items-center justify-center p-12">
           <div className="relative">

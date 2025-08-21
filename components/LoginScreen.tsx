@@ -26,23 +26,8 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      {/* Browser-like header */}
-      <div className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 p-3 z-10">
-        <div className="flex items-center space-x-2 max-w-lg">
-          <div className="flex space-x-1">
-            <div className="w-3 h-3 rounded-full bg-red-400"></div>
-            <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-            <div className="w-3 h-3 rounded-full bg-green-400"></div>
-          </div>
-          <div className="flex-1 bg-gray-100 rounded px-3 py-1 text-sm text-gray-600">
-            www.asf.com
-          </div>
-          <div className="w-6 h-6 bg-gray-200 rounded"></div>
-        </div>
-      </div>
-
       {/* Login content */}
-      <div className="w-full max-w-md mt-16">
+      <div className="w-full max-w-md mt-0">
         <div className="text-center mb-8">
           <h1>Welcome back</h1>
           <p className="text-muted-foreground mt-2">
