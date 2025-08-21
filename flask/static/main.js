@@ -1,7 +1,7 @@
 $(document).ready(function () {
     function fetchStravaActivities() {
         console.log('🛠️ Fetching Strava activities...');
-        $.get('/strava/activities', function (data) {
+        $.get('/api/strava/activities', function (data) {
             console.log('📡 Strava activities fetched:', data);
             if (data.activities) {
                 var activities = data.activities;
@@ -30,7 +30,7 @@ $(document).ready(function () {
 
     function downloadGPX(activityId) {
         console.log('📥 Downloading GPX for activity ID:', activityId);
-        window.location.href = '/strava/download_gpx/' + activityId;
+        window.location.href = '/api/strava/download_gpx/' + activityId;
     }
 
     // Fetch Strava activities on page load

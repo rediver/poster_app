@@ -74,6 +74,21 @@ def get_activity_streams(activity_id):
     response.raise_for_status()
     return response.json()
 
+
+def get_activity_details(activity_id):
+    """Retrieve detailed activity info (name, distance, moving_time, total_elevation_gain)."""
+    access_token = session.get('strava_access_token')
+    logger.debug(f"📥 Downloading activity details for ID: {activity_id}")
+    if not access_token:
+        logger.error("❌ Not authenticated with Strava")
+        raise ValueError("Not authenticated with Strava")
+    headers = {"Authorization": f"Bearer {access_token}"}
+    url = f"{STRAVA_API_BASE}/activities/{activity_id}"
+    resp = requests.get(url, headers=headers)
+    logger.debug(f"📡 Activity details status: {resp.status_code}")
+    resp.raise_for_status()
+    return resp.json()
+
 def generate_gpx_response(streams, activity_id):
     if "latlng" not in streams or "altitude" not in streams:
         logger.error(

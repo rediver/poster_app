@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     fetchActivitiesButton.addEventListener('click', () => {
         console.log('🛠️ Fetch Activities button clicked');
-        fetch('/strava/activities')
+        fetch('/api/strava/activities')
             .then(response => {
                 console.log('📡 Fetching activities:', response);
                 return response.json();
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     logoutButton.addEventListener('click', () => {
         console.log('🚪 Logout button clicked');
-        fetch('/logout', { method: 'POST' })
+        fetch('/api/logout', { method: 'POST' })
             .then(response => {
                 console.log('📡 Logout response:', response);
                 if (response.redirected) {
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function loadGPX(activityId) {
         console.log('📥 Loading GPX for activity ID:', activityId);
-        fetch(`/strava/download_gpx/${activityId}`)
+        fetch(`/api/strava/download_gpx/${activityId}`)
             .then(response => response.text())
             .then(gpxData => {
                 console.log('🗺️ GPX data loaded:', gpxData);

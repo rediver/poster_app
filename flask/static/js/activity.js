@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function loadGPX(activityId) {
         console.log('📥 Loading GPX for activity ID:', activityId);
-        fetch(`/strava/download_gpx/${activityId}`)
+        fetch(`/api/strava/download_gpx/${activityId}`)
             .then(response => response.text())
             .then(gpxData => {
                 console.log('🗺️ GPX data loaded:', gpxData);
@@ -309,7 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const canvas = await capturePoster(3);
             const dataUrl = canvas.toDataURL('image/png');
             const filenameBase = (posterTitleInput.value || 'poster').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'poster';
-            const res = await fetch('/export_poster', {
+            const res = await fetch('/api/export_poster', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ image_data: dataUrl, format: format, filename: filenameBase })
@@ -388,7 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 mono_color: bgColor,
                 background_image_data: bgImageData
             };
-            const res = await fetch('/export_poster_composed', {
+            const res = await fetch('/api/export_poster_composed', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
@@ -452,7 +452,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 background_image_data: bgImageData
             };
             console.log('➡️ POST /save_poster_composed', body);
-            const res = await fetch('/save_poster_composed', {
+            const res = await fetch('/api/save_poster_composed', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)

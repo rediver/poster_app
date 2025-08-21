@@ -17,6 +17,7 @@ from strava import (
     get_strava_activities,
     get_activity_streams,
     generate_gpx_response,
+    get_activity_details,
 )
 
 load_dotenv()  # Ensure this is called to load the environment variables
@@ -256,6 +257,27 @@ def export_poster_composed():
         min_lon_p = min_lon - lon_pad
         max_lon_p = max_lon + lon_pad
 
+        # If title/subtitle not provided, derive from activity details
+        def _fmt_hms(seconds: int) -> str:
+            h = seconds // 3600
+            m = (seconds % 3600) // 60
+            s = seconds % 60
+            return f"{h:d}:{m:02d}:{s:02d}" if h else f"{m:d}:{s:02d}"
+        def _fmt_km(meters: float) -> str:
+            return f"{meters/1000.0:.1f} km"
+        def _fmt_elev(meters: float) -> str:
+            return f"+{round(meters)} m"
+        try:
+            details = get_activity_details(activity_id)
+            # Do not auto-set title from activity name; only use user-provided title
+            if not subtitle:
+                dist = details.get('distance') or 0
+                mv = details.get('moving_time') or 0
+                elev = details.get('total_elevation_gain') or 0
+                subtitle = f"{_fmt_km(dist)} · {_fmt_hms(int(mv))} · {_fmt_elev(elev)}"
+        except Exception as _e:
+            logger.warning(f"Could not derive subtitle from activity details: {_e}")
+
         # Create destination canvas
         bg_img = Image.new('RGB', (width_px, height_px), color=(17, 17, 17))
 
@@ -467,6 +489,27 @@ def save_poster_composed():
         max_lat_p = max_lat + lat_pad
         min_lon_p = min_lon - lon_pad
         max_lon_p = max_lon + lon_pad
+
+        # If title/subtitle not provided, derive from activity details
+        def _fmt_hms(seconds: int) -> str:
+            h = seconds // 3600
+            m = (seconds % 3600) // 60
+            s = seconds % 60
+            return f"{h:d}:{m:02d}:{s:02d}" if h else f"{m:d}:{s:02d}"
+        def _fmt_km(meters: float) -> str:
+            return f"{meters/1000.0:.1f} km"
+        def _fmt_elev(meters: float) -> str:
+            return f"+{round(meters)} m"
+        try:
+            details = get_activity_details(activity_id)
+            # Do not auto-set title from activity name; only use user-provided title
+            if not subtitle:
+                dist = details.get('distance') or 0
+                mv = details.get('moving_time') or 0
+                elev = details.get('total_elevation_gain') or 0
+                subtitle = f"{_fmt_km(dist)} · {_fmt_hms(int(mv))} · {_fmt_elev(elev)}"
+        except Exception as _e:
+            logger.warning(f"Could not derive subtitle from activity details: {_e}")
 
         # Create background similar to export
         def hex_to_rgb(h):
