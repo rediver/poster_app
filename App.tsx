@@ -50,10 +50,22 @@ export default function App() {
   };
 
   const handleGpxImported = () => {
+    // Clear sample text when user brings real data into the editor
+    setConfig((prev) => ({
+      ...prev,
+      title: '',
+      subtitle: '',
+    }));
     setCurrentScreen('editor');
   };
 
-  const handleActivitySelected = () => {
+  const handleActivitySelected = (selection) => {
+    // Prefill title with activity name and subtitle with dynamic suggestion; both are editable by user
+    setConfig((prev) => ({
+      ...prev,
+      title: (selection && selection.titleSuggestion) || '',
+      subtitle: (selection && selection.subtitleSuggestion) || '',
+    }));
     setCurrentScreen('editor');
   };
 

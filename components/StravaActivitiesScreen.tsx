@@ -29,8 +29,13 @@ interface ActivityItem {
   elevation: string;
 }
 
+interface StravaSelection {
+  titleSuggestion: string;
+  subtitleSuggestion: string;
+}
+
 interface StravaActivitiesScreenProps {
-  onActivitySelected: () => void;
+  onActivitySelected: (selection: StravaSelection) => void;
 }
 
 export function StravaActivitiesScreen({ onActivitySelected }: StravaActivitiesScreenProps) {
@@ -46,7 +51,7 @@ export function StravaActivitiesScreen({ onActivitySelected }: StravaActivitiesS
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(`${BACKEND_URL}/strava/activities`, {
+        const res = await fetch(`${BACKEND_URL}/api/strava/activities`, {
           credentials: 'include',
         });
         if (!res.ok) {
@@ -100,7 +105,15 @@ const getActivityColor = (type: string) => {
 
   const handleContinue = () => {
     if (selectedActivity) {
-      onActivitySelected();
+      const act = activities.find(a => a.id === selectedActivity);
+      if (act) {
+        const parts = [act.distance, act.duration, act.elevation].filter(Boolean);
+        const subtitleSuggestion = parts.join(' · ');
+        const titleSuggestion = act.name || '';
+        onActivitySelected({ titleSuggestion, subtitleSuggestion });
+      } else {
+        onActivitySelected({ titleSuggestion: '', subtitleSuggestion: '' });
+      }
     }
   };
 

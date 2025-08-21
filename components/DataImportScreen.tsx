@@ -58,10 +58,10 @@ export function DataImportScreen({ onStravaSelected, onGpxImported }: DataImport
             </div>
 
             <div className="space-y-4">
-<Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => {
+              <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => {
                   // Start Strava OAuth on the backend; it will redirect back to FRONTEND_URL on success
                   const base = BACKEND_URL || '';
-                  window.location.href = `${base}/auth/strava`;
+                  window.location.href = `${base}/api/auth/strava`;
                 }}>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-3">
