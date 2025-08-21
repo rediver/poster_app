@@ -2,7 +2,6 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '../App'
 import '../styles/globals.css'
-import './main.css'
 import { logModule, logStylesheets, DEBUG_LOAD, assertStylesheets, assertStylesheetsFromEnv } from './debug'
 logModule('src/main.tsx')
 
@@ -13,7 +12,7 @@ if (DEBUG_LOAD) {
     try {
       logStylesheets();
       // Verify key stylesheet modules are present
-      assertStylesheets(['styles/globals.css', 'src/main.css']);
+      assertStylesheets(['styles/globals.css']);
       // Optionally verify external CDN styles via DEBUG_EXPECT_STYLES or VITE_DEBUG_EXPECT_STYLES
       assertStylesheetsFromEnv();
     } catch {}
