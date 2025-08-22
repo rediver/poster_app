@@ -1,4 +1,4 @@
-from flask import Flask, redirect, request, session, url_for, jsonify, send_file
+from flask import Flask, redirect, request, session, url_for, jsonify, send_file, make_response
 import os
 import io
 import base64
@@ -141,6 +141,53 @@ def logout():
     logger.debug("🧹 Session cleared. Logged out.")
     logger.debug(f"🔍 After clearing session: {session}")
     return ("", 204)
+
+@app.route('/api/mapbox/static')
+
+def mapbox_static():
+    try:
+        w = int(request.args.get('w', '800'))
+        h = int(request.args.get('h', '600'))
+        style_id = request.args.get('style') or 'mapbox/streets-v11'
+        token = MAPBOX_ACCESS_TOKEN
+        if not token:
+            return jsonify({"error": "MAPBOX_ACCESS_TOKEN not configured on server"}), 500
+        # Clamp size to Mapbox limits (1280), no @2x here in proxy (frontend can request exact preview size)
+        w_req = max(1, min(1280, w))
+        h_req = max(1, min(1280, h))
+
+        center = request.args.get('center')  # "lon,lat"
+        zoom = request.args.get('zoom')      # numeric string
+        bbox = request.args.get('bbox')      # "lon0,lat0,lon1,lat1"
+        bearing = request.args.get('bearing', '0')
+        pitch = request.args.get('pitch', '0')
+
+        # Prefer center+zoom; if zoom missing, default it so we don't 400
+        if center:
+            z = zoom if (zoom and zoom.strip() != '') else '12'
+            static_url = (
+                f"https://api.mapbox.com/styles/v1/{style_id}/static/"
+                f"{center},{z},{bearing},{pitch}/{w_req}x{h_req}?access_token={token}"
+            )
+        elif bbox:
+            static_url = (
+                f"https://api.mapbox.com/styles/v1/{style_id}/static/"
+                f"{bbox}/{w_req}x{h_req}?access_token={token}"
+            )
+        else:
+            return jsonify({"error": "Provide center (and optional zoom) or bbox"}), 400
+
+        logger.debug(f"🗺️ Proxy Mapbox static: {static_url}")
+        resp = requests.get(static_url)
+        if resp.status_code != 200:
+            logger.error(f"Mapbox static error {resp.status_code}: {resp.text[:200]}")
+            return jsonify({"error": "Failed to fetch map image"}), 502
+        out = make_response(resp.content)
+        out.headers['Content-Type'] = resp.headers.get('Content-Type', 'image/png')
+        return out
+    except Exception:
+        logger.exception("Error proxying Mapbox static image")
+        return jsonify({"error": "Internal error fetching map image"}), 500
 
 @app.route('/api/export_poster', methods=['POST'])
 def export_poster():

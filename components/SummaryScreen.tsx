@@ -11,18 +11,22 @@ interface PosterConfig {
   backgroundColor: string;
   textColor: string;
   accentColor: string;
-  layout: 'classic' | 'modern' | 'minimal';
+  layout: 'map' | 'modern' | 'minimal';
   showAlphabet: boolean;
   format: 'A3' | 'A4';
   orientation: 'vertical' | 'horizontal';
+  mapZoom?: number;
 }
+
+type LatLng = [number, number];
 
 interface SummaryScreenProps {
   config: PosterConfig;
+  trackPoints: LatLng[];
   onBack: () => void;
 }
 
-export function SummaryScreen({ config, onBack }: SummaryScreenProps) {
+export function SummaryScreen({ config, trackPoints, onBack }: SummaryScreenProps) {
   useLogMount('SummaryScreen');
   const [isReviewed, setIsReviewed] = useState(false);
 
@@ -79,6 +83,9 @@ export function SummaryScreen({ config, onBack }: SummaryScreenProps) {
   };
 
   const fontSizes = getFontSizes();
+  
+  const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || '';
+  const mapZoom = config.mapZoom ?? 1.5;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -90,12 +97,130 @@ export function SummaryScreen({ config, onBack }: SummaryScreenProps) {
             <div 
               className="relative border-2 border-gray-300 shadow-2xl"
               style={{ 
-                backgroundColor: config.backgroundColor,
+                backgroundColor: config.layout === 'map' ? '#ffffff' : config.backgroundColor,
                 width: `${previewWidth}px`,
                 height: `${previewHeight}px`
               }}
             >
-              <div className={`h-full p-8 flex flex-col ${getLayoutClasses()}`}>
+              {/* Mapbox background for map layout */}
+              {config.layout === 'map' && trackPoints.length > 1 && (() => {
+                const lats = trackPoints.map(p => p[0]);
+                const lons = trackPoints.map(p => p[1]);
+                const minLat = Math.min(...lats);
+                const maxLat = Math.max(...lats);
+                const minLon = Math.min(...lons);
+                const maxLon = Math.max(...lons);
+                const centerLat = (minLat + maxLat) / 2;
+                const centerLon = (minLon + maxLon) / 2;
+                
+                const paddingFactor = 0.15 / mapZoom;
+                const latPad = (maxLat - minLat) * paddingFactor || 0.001;
+                const lonPad = (maxLon - minLon) * paddingFactor || 0.001;
+                const minLatP = minLat - latPad;
+                const maxLatP = maxLat + latPad;
+                const minLonP = minLon - lonPad;
+                const maxLonP = maxLon + lonPad;
+                
+                const dLat = (maxLatP - minLatP) || 0.01;
+                const dLon = (maxLonP - minLonP) || 0.01;
+                const latRadians = centerLat * Math.PI / 180;
+                const mercatorAdjustment = Math.cos(latRadians);
+                const latZoom = Math.log2(180 / dLat) - 1;
+                const lonZoom = Math.log2(360 / (dLon / mercatorAdjustment)) - 1;
+                
+                const aspect = previewWidth / previewHeight;
+                const bboxAspect = (dLon * mercatorAdjustment) / dLat;
+                let zoom = bboxAspect > aspect ? lonZoom : latZoom;
+                zoom = zoom + (mapZoom - 1.5) * 0.5;
+                zoom = Math.max(1, Math.min(18, zoom));
+
+                const isDark = config.backgroundColor === '#000000' || config.backgroundColor.toLowerCase() === '#111111';
+                const styleId = isDark ? 'mapbox/dark-v11' : 'mapbox/light-v11';
+                const sizeW = Math.round(previewWidth);
+                const sizeH = Math.round(previewHeight);
+                const center = `${centerLon},${centerLat}`;
+                const url = `${BACKEND_URL}/api/mapbox/static?style=${encodeURIComponent(styleId)}&center=${encodeURIComponent(center)}&zoom=${encodeURIComponent(String(zoom))}&w=${sizeW}&h=${sizeH}`;
+                const filterStr = isDark 
+                  ? 'grayscale(1) saturate(0) contrast(0.95) brightness(0.6)'
+                  : 'grayscale(1) saturate(0) contrast(0.85) brightness(1.05)';
+                const overlayColor = isDark ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.25)';
+                return (
+                  <>
+                    <img src={url} alt="map" className="absolute inset-0 w-full h-full object-fill z-0" style={{ filter: filterStr, opacity: 0.95 }} />
+                    <div className="absolute inset-0 pointer-events-none z-0" style={{ backgroundColor: overlayColor }} />
+                  </>
+                );
+              })()}
+
+              {/* GPX track overlay */}
+              {trackPoints.length > 1 && (
+                <svg
+                  className="absolute inset-0 pointer-events-none z-10"
+                  width={previewWidth}
+                  height={previewHeight}
+                  viewBox={`0 0 ${previewWidth} ${previewHeight}`}
+                >
+                  {(() => {
+                    const lats = trackPoints.map(p => p[0]);
+                    const lons = trackPoints.map(p => p[1]);
+                    const minLat = Math.min(...lats);
+                    const maxLat = Math.max(...lats);
+                    const minLon = Math.min(...lons);
+                    const maxLon = Math.max(...lons);
+                    const padLat = (maxLat - minLat) * 0.05 || 0.001;
+                    const padLon = (maxLon - minLon) * 0.05 || 0.001;
+                    const minLatP = minLat - padLat;
+                    const maxLatP = maxLat + padLat;
+                    const minLonP = minLon - padLon;
+                    const maxLonP = maxLon + padLon;
+                    const toXY = (lat: number, lon: number) => {
+                      const x = (lon - minLonP) / (maxLonP - minLonP) * (previewWidth - 1);
+                      const y = (maxLatP - lat) / (maxLatP - minLatP) * (previewHeight - 1);
+                      return [x, y] as [number, number];
+                    };
+                    const points = trackPoints.map(([lat, lon]) => toXY(lat, lon));
+
+                    // Build a gently smoothed path using Catmull–Rom converted to cubic Bézier
+                    const buildSmoothPath = (pts: [number, number][], tension = 0.45) => {
+                      if (pts.length <= 2) {
+                        return pts
+                          .map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`)
+                          .join(' ');
+                      }
+
+                      let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+                      for (let i = 0; i < pts.length - 1; i++) {
+                        const p0 = i > 0 ? pts[i - 1] : pts[i];
+                        const p1 = pts[i];
+                        const p2 = pts[i + 1];
+                        const p3 = i !== pts.length - 2 ? pts[i + 2] : pts[i + 1];
+
+                        const c1x = p1[0] + (p2[0] - p0[0]) * (tension / 6);
+                        const c1y = p1[1] + (p2[1] - p0[1]) * (tension / 6);
+                        const c2x = p2[0] - (p3[0] - p1[0]) * (tension / 6);
+                        const c2y = p2[1] - (p3[1] - p1[1]) * (tension / 6);
+
+                        d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+                      }
+                      return d;
+                    };
+
+                    const d = buildSmoothPath(points, 0.45);
+                    const isDarkBg = config.backgroundColor === '#000000' || config.backgroundColor.toLowerCase() === '#111111';
+                    const haloColor = isDarkBg ? 'rgba(255,255,255,0.70)' : 'rgba(0,0,0,0.70)';
+                    const coreColor = isDarkBg ? '#FFFFFF' : '#111111';
+                    return (
+                      <>
+                        <path d={d} fill="none" stroke={haloColor} strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" shapeRendering="geometricPrecision" />
+                        <path d={d} fill="none" stroke={coreColor} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" shapeRendering="geometricPrecision" />
+                        <path d={d} fill="none" stroke={config.accentColor} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" shapeRendering="geometricPrecision" />
+                      </>
+                    );
+                  })()}
+                </svg>
+              )}
+              
+              <div className={`relative z-20 h-full p-8 flex flex-col ${getLayoutClasses()}`}>
                 {config.showAlphabet && (
                   <div className="mb-6">
                     <pre 

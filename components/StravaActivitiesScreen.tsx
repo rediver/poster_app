@@ -30,6 +30,7 @@ interface ActivityItem {
 }
 
 interface StravaSelection {
+  activityId: string;
   titleSuggestion: string;
   subtitleSuggestion: string;
 }
@@ -110,9 +111,9 @@ const getActivityColor = (type: string) => {
         const parts = [act.distance, act.duration, act.elevation].filter(Boolean);
         const subtitleSuggestion = parts.join(' · ');
         const titleSuggestion = act.name || '';
-        onActivitySelected({ titleSuggestion, subtitleSuggestion });
+        onActivitySelected({ activityId: selectedActivity, titleSuggestion, subtitleSuggestion });
       } else {
-        onActivitySelected({ titleSuggestion: '', subtitleSuggestion: '' });
+        onActivitySelected({ activityId: selectedActivity, titleSuggestion: '', subtitleSuggestion: '' });
       }
     }
   };

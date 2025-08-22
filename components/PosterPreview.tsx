@@ -7,7 +7,7 @@ interface PosterConfig {
   backgroundColor: string;
   textColor: string;
   accentColor: string;
-  layout: 'classic' | 'modern' | 'minimal';
+  layout: 'map' | 'modern' | 'minimal';
   showAlphabet: boolean;
   format: 'A3' | 'A4';
   orientation: 'vertical' | 'horizontal';
