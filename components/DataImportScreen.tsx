@@ -5,21 +5,38 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Upload, Activity } from 'lucide-react';
 
+type LatLng = [number, number];
+
 interface DataImportScreenProps {
   onStravaSelected: () => void;
-  onGpxImported: () => void;
+  onGpxImported: (points: LatLng[]) => void;
 }
 
 export function DataImportScreen({ onStravaSelected, onGpxImported }: DataImportScreenProps) {
   useLogMount('DataImportScreen');
   const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || '';
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && file.name.endsWith('.gpx')) {
-      // Simulate processing the GPX file
-      setTimeout(() => {
-        onGpxImported();
-      }, 1000);
+    if (file && file.name.toLowerCase().endsWith('.gpx')) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const text = reader.result as string;
+          const parser = new DOMParser();
+          const xml = parser.parseFromString(text, 'application/xml');
+          const trkpts = Array.from(xml.getElementsByTagName('trkpt'));
+          const points: LatLng[] = trkpts.map((el) => [
+            parseFloat(el.getAttribute('lat') || '0'),
+            parseFloat(el.getAttribute('lon') || '0'),
+          ]).filter(([lat, lon]) => !Number.isNaN(lat) && !Number.isNaN(lon));
+          if (points.length > 1) {
+            onGpxImported(points);
+          }
+        } catch (e) {
+          console.error('Failed to parse GPX', e);
+        }
+      };
+      reader.readAsText(file);
     }
   };
 

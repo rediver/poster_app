@@ -6,6 +6,8 @@ import { SummaryScreen } from './components/SummaryScreen';
 import { logModule, useLogMount } from './src/debug';
 logModule('App.tsx module');
 
+type LatLng = [number, number];
+
 interface PosterConfig {
   title: string;
   subtitle: string;
@@ -23,7 +25,8 @@ type AppScreen = 'import' | 'strava-activities' | 'editor' | 'summary';
 
 export default function App() {
   useLogMount('App component');
-  const [currentScreen, setCurrentScreen] = useState<AppScreen>('import');
+const [currentScreen, setCurrentScreen] = useState<AppScreen>('import');
+  const [trackPoints, setTrackPoints] = useState<LatLng[]>([]);
   // Detect auth callback from backend
   React.useEffect(() => {
     if (window.location.hash.includes('strava=authenticated')) {
@@ -49,7 +52,8 @@ export default function App() {
     setCurrentScreen('strava-activities');
   };
 
-  const handleGpxImported = () => {
+const handleGpxImported = (points: LatLng[]) => {
+    setTrackPoints(points);
     // Clear sample text when user brings real data into the editor
     setConfig((prev) => ({
       ...prev,
@@ -163,7 +167,43 @@ export default function App() {
                 width: `${previewWidth}px`,
                 height: `${previewHeight}px`
               }}
-            >
+>
+              {/* GPX track overlay */}
+              {trackPoints.length > 1 && (
+                <svg
+                  className="absolute inset-0 pointer-events-none"
+                  width={previewWidth}
+                  height={previewHeight}
+                  viewBox={`0 0 ${previewWidth} ${previewHeight}`}
+                >
+                  {(() => {
+                    const lats = trackPoints.map(p => p[0]);
+                    const lons = trackPoints.map(p => p[1]);
+                    const minLat = Math.min(...lats);
+                    const maxLat = Math.max(...lats);
+                    const minLon = Math.min(...lons);
+                    const maxLon = Math.max(...lons);
+                    const padLat = (maxLat - minLat) * 0.05 || 0.001;
+                    const padLon = (maxLon - minLon) * 0.05 || 0.001;
+                    const minLatP = minLat - padLat;
+                    const maxLatP = maxLat + padLat;
+                    const minLonP = minLon - padLon;
+                    const maxLonP = maxLon + padLon;
+                    const toXY = (lat: number, lon: number) => {
+                      const x = (lon - minLonP) / (maxLonP - minLonP) * (previewWidth - 1);
+                      const y = (maxLatP - lat) / (maxLatP - minLatP) * (previewHeight - 1);
+                      return [x, y] as [number, number];
+                    };
+                    const d = trackPoints.map(([lat, lon], i) => {
+                      const [x, y] = toXY(lat, lon);
+                      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+                    }).join(' ');
+                    return (
+                      <path d={d} fill="none" stroke={config.accentColor} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+                    );
+                  })()}
+                </svg>
+              )}
               <div className={`h-full p-6 flex flex-col ${getLayoutClasses()}`}>
                 {config.showAlphabet && (
                   <div className="mb-4">
