@@ -28,6 +28,30 @@ export default function App() {
   useLogMount('App component');
 const [currentScreen, setCurrentScreen] = useState<AppScreen>('import');
   const [trackPoints, setTrackPoints] = useState<LatLng[]>([]);
+  // Preview container sizing
+  const previewContainerRef = React.useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  React.useEffect(() => {
+    const el = previewContainerRef.current;
+    if (!el) return;
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      setContainerSize({ w: rect.width, h: rect.height });
+    };
+    update();
+    // ResizeObserver when available for smoother updates
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => update());
+      ro.observe(el);
+    } else {
+      window.addEventListener('resize', update);
+    }
+    return () => {
+      if (ro) ro.disconnect();
+      else window.removeEventListener('resize', update);
+    };
+  }, []);
   // Detect auth callback from backend
   React.useEffect(() => {
     if (window.location.hash.includes('strava=authenticated')) {
@@ -121,23 +145,25 @@ const handleGpxImported = (points: LatLng[]) => {
     }
   };
 
-  // Calculate poster dimensions for editor preview
+  // Calculate poster dimensions for editor preview (dynamic scale to maximize area)
   const getDimensions = () => {
     const isVertical = config.orientation === 'vertical';
-    
-    if (config.format === 'A3') {
-      return {
-        width: isVertical ? 420 : 594,
-        height: isVertical ? 594 : 420,
-        scale: 0.8 // Good size for editor
-      };
-    } else { // A4
-      return {
-        width: isVertical ? 297 : 420,
-        height: isVertical ? 420 : 297,
-        scale: 1.0 // Larger scale for A4 in editor
-      };
+    const base = config.format === 'A3'
+      ? { width: isVertical ? 420 : 594, height: isVertical ? 594 : 420 }
+      : { width: isVertical ? 297 : 420, height: isVertical ? 420 : 297 };
+
+    // Compute scale to fit within available container while keeping aspect ratio
+    let scale = 1;
+    if (containerSize.w && containerSize.h) {
+      const availW = Math.max(100, containerSize.w - 48); // account for padding
+      const availH = Math.max(100, containerSize.h - 48);
+      scale = Math.min(availW / base.width, availH / base.height) * 0.92; // small margin
+    } else {
+      // Fallback reasonable scales
+      scale = config.format === 'A3' ? 1.2 : 1.4;
     }
+
+    return { width: base.width, height: base.height, scale };
   };
 
   const dimensions = getDimensions();
@@ -181,7 +207,7 @@ const handleGpxImported = (points: LatLng[]) => {
 
   // Show Strava activities screen
   if (currentScreen === 'strava-activities') {
-    return <StravaActivitiesScreen onActivitySelected={handleActivitySelected} />;
+    return <StravaActivitiesScreen posterConfig={config} onActivitySelected={handleActivitySelected} />;
   }
 
   // Show summary screen
@@ -195,7 +221,7 @@ const handleGpxImported = (points: LatLng[]) => {
       {/* Main content */}
       <div className="flex min-h-screen">
         {/* Left side - Large Poster Preview */}
-        <div className="flex-1 bg-white border-r border-gray-200 flex items-center justify-center p-8">
+        <div ref={previewContainerRef} className="flex-1 bg-white border-r border-gray-200 flex items-center justify-center p-8">
           <div className="relative">
             <div 
               className="relative border-2 border-gray-300 shadow-xl"

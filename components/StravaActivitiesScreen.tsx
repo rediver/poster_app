@@ -35,17 +35,71 @@ interface StravaSelection {
   subtitleSuggestion: string;
 }
 
-interface StravaActivitiesScreenProps {
-  onActivitySelected: (selection: StravaSelection) => void;
+interface PosterConfig {
+  title: string;
+  subtitle: string;
+  fontFamily: string;
+  backgroundColor: string;
+  textColor: string;
+  accentColor: string;
+  layout: 'map' | 'modern' | 'minimal';
+  showAlphabet: boolean;
+  format: 'A3' | 'A4';
+  orientation: 'vertical' | 'horizontal';
 }
 
-export function StravaActivitiesScreen({ onActivitySelected }: StravaActivitiesScreenProps) {
+interface StravaActivitiesScreenProps {
+  onActivitySelected: (selection: StravaSelection) => void;
+  posterConfig: PosterConfig;
+}
+
+export function StravaActivitiesScreen({ onActivitySelected, posterConfig }: StravaActivitiesScreenProps) {
   useLogMount('StravaActivitiesScreen');
   const [selectedActivity, setSelectedActivity] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || '';
+
+  // Dynamic poster preview sizing (match editor proportions)
+  const previewContainerRef = React.useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  React.useEffect(() => {
+    const el = previewContainerRef.current;
+    if (!el) return;
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      setContainerSize({ w: rect.width, h: rect.height });
+    };
+    // Defer to next frame to ensure layout is ready
+    const raf = requestAnimationFrame(update);
+    const onResize = () => update();
+    window.addEventListener('resize', onResize);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+
+  const getDimensions = () => {
+    const isVertical = posterConfig.orientation === 'vertical';
+    const base = posterConfig.format === 'A3'
+      ? { width: isVertical ? 420 : 594, height: isVertical ? 594 : 420 }
+      : { width: isVertical ? 297 : 420, height: isVertical ? 420 : 297 };
+    let scale = 1;
+    if (containerSize.w && containerSize.h) {
+      const availW = Math.max(100, containerSize.w - 48);
+      const availH = Math.max(100, containerSize.h - 48);
+      scale = Math.min(availW / base.width, availH / base.height) * 0.92;
+    } else {
+      scale = posterConfig.format === 'A3' ? 0.9 : 1.1;
+    }
+    return { width: base.width, height: base.height, scale };
+  };
+
+  const dims = getDimensions();
+  const previewWidth = dims.width * dims.scale;
+  const previewHeight = dims.height * dims.scale;
 
   useEffect(() => {
     const fetchActivities = async () => {
@@ -123,18 +177,22 @@ const getActivityColor = (type: string) => {
       {/* Main content */}
       <div className="flex min-h-screen">
         {/* Left side - Poster Preview */}
-        <div className="flex-1 bg-white border-r border-gray-200 flex items-center justify-center p-8">
+        <div ref={previewContainerRef} className="flex-1 bg-white border-r border-gray-200 flex items-center justify-center p-8">
           <div className="relative">
-            <div className="w-80 h-96 bg-white border-2 border-gray-300 shadow-xl p-6 flex flex-col">
+            <div 
+              className="relative bg-white border-2 border-gray-300 shadow-xl p-6 flex flex-col"
+              style={{ width: `${previewWidth}px`, height: `${previewHeight}px`, backgroundColor: posterConfig.backgroundColor }}
+            >
               <div className="mb-4">
-                <pre className="text-sm font-semibold text-gray-800 leading-tight">
+                <pre className="whitespace-pre-wrap"
+                     style={{ color: posterConfig.textColor, fontFamily: posterConfig.fontFamily, fontSize: `${Math.round(18 * (posterConfig.format === 'A3' ? 1.3 : 1))}px`, lineHeight: '1.1', fontWeight: 600 }}>
                   ABCD{'\n'}EFGHIJK{'\n'}LMNOP{'\n'}QRSTUV{'\n'}WXYZ
                 </pre>
               </div>
               
               <div className="flex-1 flex flex-col justify-end">
-                <h1 className="text-2xl font-bold text-orange-500 mb-2">Helvetica</h1>
-                <p className="text-sm text-gray-600 leading-relaxed">
+                <h1 className="mb-2" style={{ color: posterConfig.accentColor, fontFamily: posterConfig.fontFamily, fontSize: `${Math.round(28 * (posterConfig.format === 'A3' ? 1.3 : 1))}px`, fontWeight: 700, lineHeight: '1.1' }}>Helvetica</h1>
+                <p style={{ color: posterConfig.textColor, fontFamily: posterConfig.fontFamily, fontSize: `${Math.round(12 * (posterConfig.format === 'A3' ? 1.0 : 0.9))}px`, lineHeight: '1.3' }}>
                   A neo-grotesque or realist design, one of the most popular typefaces in the world
                 </p>
               </div>

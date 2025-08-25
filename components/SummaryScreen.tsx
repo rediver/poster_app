@@ -30,6 +30,27 @@ export function SummaryScreen({ config, trackPoints, onBack }: SummaryScreenProp
   useLogMount('SummaryScreen');
   const [isReviewed, setIsReviewed] = useState(false);
 
+  // Dynamic left-pane sizing like editor
+  const previewContainerRef = React.useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  React.useEffect(() => {
+    const el = previewContainerRef.current;
+    if (!el) return;
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      setContainerSize({ w: rect.width, h: rect.height });
+    };
+    update();
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => update());
+      ro.observe(el);
+    } else {
+      window.addEventListener('resize', update);
+    }
+    return () => { ro ? ro.disconnect() : window.removeEventListener('resize', update); };
+  }, []);
+
   const handleCheckout = () => {
     alert('Checkout functionality would be implemented here');
   };
@@ -45,23 +66,21 @@ export function SummaryScreen({ config, trackPoints, onBack }: SummaryScreenProp
     }
   };
 
-  // Calculate poster dimensions for larger preview
+  // Calculate poster dimensions dynamically to maximize left pane, keeping proportions
   const getDimensions = () => {
     const isVertical = config.orientation === 'vertical';
-    
-    if (config.format === 'A3') {
-      return {
-        width: isVertical ? 420 : 594,
-        height: isVertical ? 594 : 420,
-        scale: 0.9 // Larger scale for summary
-      };
-    } else { // A4
-      return {
-        width: isVertical ? 297 : 420,
-        height: isVertical ? 420 : 297,
-        scale: 1.2 // Much larger scale for A4 in summary
-      };
+    const base = config.format === 'A3'
+      ? { width: isVertical ? 420 : 594, height: isVertical ? 594 : 420 }
+      : { width: isVertical ? 297 : 420, height: isVertical ? 420 : 297 };
+    let scale = 1;
+    if (containerSize.w && containerSize.h) {
+      const availW = Math.max(100, containerSize.w - 64); // more padding in summary
+      const availH = Math.max(100, containerSize.h - 64);
+      scale = Math.min(availW / base.width, availH / base.height) * 0.95;
+    } else {
+      scale = config.format === 'A3' ? 1.1 : 1.3;
     }
+    return { width: base.width, height: base.height, scale };
   };
 
   const dimensions = getDimensions();
@@ -92,7 +111,7 @@ export function SummaryScreen({ config, trackPoints, onBack }: SummaryScreenProp
       {/* Main content */}
       <div className="flex min-h-screen">
         {/* Left side - Large Poster Preview */}
-        <div className="flex-1 bg-white border-r border-gray-200 flex items-center justify-center p-12">
+        <div ref={previewContainerRef} className="flex-1 bg-white border-r border-gray-200 flex items-center justify-center p-12">
           <div className="relative">
             <div 
               className="relative border-2 border-gray-300 shadow-2xl"
