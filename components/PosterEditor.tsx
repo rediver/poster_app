@@ -21,7 +21,6 @@ interface PosterConfig {
   showAlphabet: boolean;
   format: 'A3' | 'A4';
   orientation: 'vertical' | 'horizontal';
-  mapZoom?: number;
 }
 
 interface PosterEditorProps {
@@ -186,23 +185,6 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
 
           <Separator />
 
-          {/* Map zoom (only for map layout) */}
-          {config.layout === 'map' && (
-            <>
-              <div className="space-y-2">
-                <Label>Map Zoom</Label>
-                <input
-                  type="range"
-                  min={0.5}
-                  max={3}
-                  step={0.1}
-              value={config.mapZoom ?? 1.5}
-                  onChange={(e) => updateConfig({ mapZoom: parseFloat(e.target.value) })}
-                />
-              </div>
-              <Separator />
-            </>
-          )}
 
           {/* Colors */}
           <div className="space-y-4">
