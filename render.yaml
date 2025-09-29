@@ -46,6 +46,10 @@ services:
     autoDeploy: true
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
+    routes:
+      - type: redirect
+        source: /strava/*
+        destination: https://poster-backend-94h1.onrender.com/strava/:splat
     envVars:
       # Opcjonalnie, gdy będziesz korzystać z frontu (Embedded UI)
       - key: VITE_BACKEND_URL
