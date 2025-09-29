@@ -30,6 +30,15 @@ def create_app() -> Flask:
     def healthz():
         return jsonify(ok=True)
 
+    @app.get('/debug/env')
+    def debug_env():
+        return jsonify({
+            'PUBLIC_BASE_URL': os.getenv('PUBLIC_BASE_URL') or 'NOT_SET',
+            'STRAVA_CLIENT_ID': os.getenv('STRAVA_CLIENT_ID') or 'NOT_SET',
+            'STRAVA_CLIENT_SECRET': 'SET' if os.getenv('STRAVA_CLIENT_SECRET') else 'NOT_SET',
+            'SHOPIFY_API_SECRET': 'SET' if os.getenv('SHOPIFY_API_SECRET') else 'NOT_SET'
+        })
+
     @app.get('/proxy/ping')
     def proxy_ping():
         if not verify_app_proxy_signature(request):
