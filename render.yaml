@@ -1,6 +1,3 @@
-previews:
-  generation: automatic
-
 services:
   - type: web
     name: poster-backend
@@ -49,8 +46,6 @@ services:
     autoDeploy: true
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
-    previews:
-      generation: automatic
     envVars:
       # Opcjonalnie, gdy będziesz korzystać z frontu (Embedded UI)
       - key: VITE_BACKEND_URL
