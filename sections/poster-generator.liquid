@@ -1,0 +1,237 @@
+<div data-section-poster data-variant-id="{{ section.settings.poster_variant_id | escape }}">
+  <!-- Method selection -->
+  <div>
+    <label><input type="radio" name="method" value="gpx" checked> Wgraj plik GPX</label><br>
+    <label><input type="radio" name="method" value="strava"> Połącz ze Stravą</label>
+  </div>
+  
+  <!-- GPX method -->
+  <div id="gpxMethod" style="margin-top: 1rem;">
+    <label for="gpxInput">Plik GPX</label>
+    <input id="gpxInput" type="file" accept=".gpx" />
+    <button id="generateGpxBtn" type="button">Wygeneruj podgląd</button>
+  </div>
+  
+  <!-- Strava method -->
+  <div id="stravaMethod" style="margin-top: 1rem; display:none;">
+    <div id="stravaLoginWrap">
+      <button id="stravaLoginBtn" type="button">Zaloguj się do Stravy</button>
+      <div id="stravaStatus" style="color:#888; margin-top:.25rem;"></div>
+    </div>
+    <div id="stravaActivityWrap" style="display:none; margin-top:.75rem;">
+      <label for="activityIdInput">ID aktywności Strava</label>
+      <input id="activityIdInput" type="text" placeholder="1234567890" />
+      <button id="generateStravaBtn" type="button">Wygeneruj z aktywności</button>
+    </div>
+  </div>
+  
+  <div id="previewContainer" style="display:none; margin-top: 1rem;">
+    <img id="previewImg" src="" alt="Podgląd plakatu" style="max-width:100%; height:auto;" />
+    <div style="margin-top: .75rem;">
+      <button id="addToCartBtn" type="button">Dodaj do koszyka</button>
+    </div>
+  </div>
+  <div id="statusMsg" style="margin-top:.5rem; color:#555;"></div>
+</div>
+
+<script>
+(function() {
+  const root = document.currentScript.closest('[data-section-poster]');
+  const methodRadios = root.querySelectorAll('input[name="method"]');
+  const gpxMethod = root.querySelector('#gpxMethod');
+  const stravaMethod = root.querySelector('#stravaMethod');
+  
+  const gpxInput = root.querySelector('#gpxInput');
+  const generateGpxBtn = root.querySelector('#generateGpxBtn');
+  
+  const stravaLoginBtn = root.querySelector('#stravaLoginBtn');
+  const stravaStatus = root.querySelector('#stravaStatus');
+  const stravaActivityWrap = root.querySelector('#stravaActivityWrap');
+  const activityIdInput = root.querySelector('#activityIdInput');
+  const generateStravaBtn = root.querySelector('#generateStravaBtn');
+  
+  const previewWrap = root.querySelector('#previewContainer');
+  const previewImg = root.querySelector('#previewImg');
+  const addToCartBtn = root.querySelector('#addToCartBtn');
+  const statusMsg = root.querySelector('#statusMsg');
+  const variantIdStr = root.getAttribute('data-variant-id') || '';
+
+  let generated = null; // { id, preview_url, width, height }
+  let stravaToken = null; // from OAuth popup
+  let appConfig = null; // from /apps/poster/config
+
+  function setStatus(msg) {
+    statusMsg.textContent = msg || '';
+  }
+  
+  // Load config on startup
+  (async function loadConfig() {
+    try {
+      const res = await fetch('/apps/poster/config');
+      appConfig = await res.json();
+    } catch (e) {
+      console.error('Failed to load config', e);
+    }
+  })();
+
+  // Method switching
+  methodRadios.forEach(radio => {
+    radio.addEventListener('change', () => {
+      if (radio.value === 'gpx') {
+        gpxMethod.style.display = '';
+        stravaMethod.style.display = 'none';
+      } else {
+        gpxMethod.style.display = 'none';
+        stravaMethod.style.display = '';
+      }
+    });
+  });
+
+  // GPX generate
+  generateGpxBtn.addEventListener('click', async () => {
+    if (!gpxInput.files || !gpxInput.files[0]) {
+      setStatus('Wybierz plik GPX.');
+      return;
+    }
+    setStatus('Generuję podgląd...');
+
+    const form = new FormData();
+    form.append('source', 'gpx');
+    form.append('gpx_file', gpxInput.files[0]);
+
+    try {
+      const res = await fetch('/apps/poster/generate', {
+        method: 'POST',
+        body: form
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        console.error('Generate error', data);
+        setStatus('Błąd generowania: ' + (data.error || res.status));
+        return;
+      }
+      generated = data;
+      previewImg.src = data.preview_url;
+      previewWrap.style.display = '';
+      setStatus('Gotowe.');
+    } catch (e) {
+      console.error(e);
+      setStatus('Błąd sieci podczas generowania.');
+    }
+  });
+  
+  // Strava OAuth
+  stravaLoginBtn.addEventListener('click', () => {
+    if (!appConfig || !appConfig.strava_auth_url) {
+      setStatus('Strava nie jest skonfigurowana.');
+      return;
+    }
+    const popup = window.open(appConfig.strava_auth_url, 'strava_oauth', 'width=500,height=600');
+    const listener = (event) => {
+      if (event.data && event.data.type === 'strava_oauth') {
+        stravaToken = event.data.access_token;
+        stravaStatus.textContent = 'Zalogowano: ' + (event.data.athlete || 'użytkownik');
+        stravaActivityWrap.style.display = '';
+        popup.close();
+        window.removeEventListener('message', listener);
+      }
+    };
+    window.addEventListener('message', listener);
+  });
+  
+  // Strava generate
+  generateStravaBtn.addEventListener('click', async () => {
+    if (!stravaToken) {
+      setStatus('Zaloguj się do Stravy.');
+      return;
+    }
+    const activityId = activityIdInput.value.trim();
+    if (!activityId) {
+      setStatus('Wpisz ID aktywności.');
+      return;
+    }
+    setStatus('Generuję podgląd ze Stravy...');
+    
+    try {
+      const res = await fetch('/apps/poster/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: 'strava',
+          access_token: stravaToken,
+          activity_id: activityId
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        console.error('Strava generate error', data);
+        setStatus('Błąd generowania ze Stravy: ' + (data.error || res.status));
+        return;
+      }
+      generated = data;
+      previewImg.src = data.preview_url;
+      previewWrap.style.display = '';
+      setStatus('Gotowe.');
+    } catch (e) {
+      console.error(e);
+      setStatus('Błąd sieci podczas generowania ze Stravy.');
+    }
+  });
+
+  // Add to cart
+  addToCartBtn.addEventListener('click', async () => {
+    if (!generated) {
+      setStatus('Brak podglądu do dodania.');
+      return;
+    }
+    if (!variantIdStr) {
+      setStatus('Skonfiguruj ID wariantu produktu w ustawieniach sekcji.');
+      return;
+    }
+    setStatus('Dodaję do koszyka...');
+    try {
+      const payload = {
+        items: [{
+          id: parseInt(variantIdStr, 10),
+          quantity: 1,
+          properties: {
+            'Poster ID': generated.id,
+            'Poster preview': generated.preview_url
+          }
+        }]
+      };
+      const res = await fetch('/cart/add.js', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err);
+      }
+      setStatus('Dodano do koszyka. Przechodzę do koszyka...');
+      window.location.href = '/cart';
+    } catch (e) {
+      console.error(e);
+      setStatus('Nie udało się dodać do koszyka.');
+    }
+  });
+})();
+</script>
+
+{% schema %}
+{
+  "name": "Poster generator",
+  "settings": [
+    {
+      "type": "text",
+      "id": "poster_variant_id",
+      "label": "ID wariantu produktu Poster (liczba)",
+      "default": ""
+    }
+  ],
+  "presets": [
+    { "name": "Poster generator" }
+  ]
+}
+{% endschema %}

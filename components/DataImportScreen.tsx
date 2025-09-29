@@ -1,5 +1,5 @@
 import React from 'react';
-import { logModule, useLogMount } from '../src/debug';
+import { logModule, useLogMount, logInfo, DEBUG_LOAD } from '../src/debug';
 logModule('components/DataImportScreen.tsx module');
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -40,6 +40,29 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     }
   };
 
+  const handleStravaClick = async () => {
+    try {
+      const baseRaw = BACKEND_URL || '';
+      const base = baseRaw.replace(/\/$/, '');
+      const target = base ? `${base}/api/auth/strava` : '/api/auth/strava';
+      if (DEBUG_LOAD) logInfo('Strava clicked', { BACKEND_URL: baseRaw, target });
+      // Optional preflight when debugging
+      if (DEBUG_LOAD && base) {
+        try {
+          const health = await fetch(`${base}/api/health`, { credentials: 'include' });
+          logInfo('Backend /api/health status', { status: health.status });
+        } catch (e) {
+          console.warn('Health check failed before redirect', e);
+        }
+      } else if (DEBUG_LOAD && !base) {
+        console.warn('VITE_BACKEND_URL not set; using relative /api/auth/strava. Ensure same-origin setup or a dev proxy.');
+      }
+      window.location.assign(target);
+    } catch (e) {
+      console.error('Failed to start Strava OAuth redirect', e);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Main content */}
@@ -75,11 +98,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             </div>
 
             <div className="space-y-4">
-              <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => {
-                  // Start Strava OAuth on the backend; it will redirect back to FRONTEND_URL on success
-                  const base = BACKEND_URL || '';
-                  window.location.href = `${base}/api/auth/strava`;
-                }}>
+              <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={handleStravaClick}>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-orange-500 rounded flex items-center justify-center">

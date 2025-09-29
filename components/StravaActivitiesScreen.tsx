@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { logModule, useLogMount } from '../src/debug';
+import { logModule, useLogMount, logInfo, DEBUG_LOAD } from '../src/debug';
 logModule('components/StravaActivitiesScreen.tsx module');
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
@@ -106,10 +106,14 @@ export function StravaActivitiesScreen({ onActivitySelected, posterConfig }: Str
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(`${BACKEND_URL}/api/strava/activities`, {
+        const url = `${BACKEND_URL}/api/strava/activities`;
+        if (DEBUG_LOAD) logInfo('Fetching Strava activities', { url });
+        const res = await fetch(url, {
           credentials: 'include',
         });
         if (!res.ok) {
+          const txt = await res.text().catch(() => '');
+          if (DEBUG_LOAD) logInfo('Strava activities response not OK', { status: res.status, body: txt.slice(0, 300) });
           throw new Error(`Failed to fetch activities (${res.status})`);
         }
         const data = await res.json();
@@ -134,6 +138,7 @@ export function StravaActivitiesScreen({ onActivitySelected, posterConfig }: Str
           elevation: `${Math.round(a.total_elevation_gain || 0)} m`,
         }));
         setActivities(items);
+        if (DEBUG_LOAD) logInfo('Activities loaded', { count: items.length });
       } catch (e: any) {
         setError(e.message || 'Unknown error');
       } finally {

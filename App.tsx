@@ -3,7 +3,7 @@ import { DataImportScreen } from './components/DataImportScreen';
 import { StravaActivitiesScreen } from './components/StravaActivitiesScreen';
 import { PosterEditor } from './components/PosterEditor';
 import { SummaryScreen } from './components/SummaryScreen';
-import { logModule, useLogMount } from './src/debug';
+import { logModule, useLogMount, logInfo, DEBUG_LOAD } from './src/debug';
 logModule('App.tsx module');
 
 type LatLng = [number, number];
@@ -54,10 +54,14 @@ const [currentScreen, setCurrentScreen] = useState<AppScreen>('import');
   }, []);
   // Detect auth callback from backend
   React.useEffect(() => {
-    if (window.location.hash.includes('strava=authenticated')) {
+    const hash = window.location.hash || '';
+    if (hash.includes('strava=authenticated')) {
+      if (DEBUG_LOAD) logInfo('Detected Strava auth hash; switching to activities screen');
       setCurrentScreen('strava-activities');
       // Clean hash so refreshes don't re-trigger
       history.replaceState(null, '', window.location.pathname + window.location.search);
+    } else {
+      if (DEBUG_LOAD) logInfo('No Strava auth hash on load', { hash });
     }
   }, []);
   const [config, setConfig] = useState<PosterConfig>({

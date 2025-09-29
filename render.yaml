@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: poster-backend
+    runtime: python
+    autoDeploy: true
+    healthCheckPath: /healthz
+    buildCommand: |
+      pip install -r flask/requirements.txt
+    startCommand: |
+      gunicorn server.app:app -w 2 -k gthread -b 0.0.0.0:$PORT
+    envVars:
+      - key: PUBLIC_BASE_URL
+        # Ustaw po pierwszym deployu na pełny URL backendu, np. https://poster-backend.onrender.com
+        value: ""
+      - key: SHOPIFY_API_SECRET
+        sync: false
+      - key: STRAVA_CLIENT_ID
+        sync: false
+      - key: STRAVA_CLIENT_SECRET
+        sync: false
+      - key: POSTER_OUT_W
+        value: "4800"
+      - key: POSTER_OUT_H
+        value: "3600"
+      - key: POSTER_STORAGE_MODE
+        value: s3
+      - key: AWS_REGION
+        value: eu-central-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_BUCKET
+        value: your-bucket-name
+      - key: S3_PUBLIC_READ
+        value: "true"
+      - key: S3_KEY_PREFIX
+        value: posters/
+      # Jeśli korzystasz z CDN (CloudFront), ustaw publiczną bazę URL dla plików
+      - key: S3_PUBLIC_BASE_URL
+        value: ""
+
+  - type: static_site
+    name: poster-frontend
+    autoDeploy: true
+    buildCommand: |
+      npm ci && npm run build
+    publishPath: dist
+    envVars:
+      # Opcjonalnie, gdy będziesz korzystać z frontu (Embedded UI)
+      - key: VITE_BACKEND_URL
+        value: ""

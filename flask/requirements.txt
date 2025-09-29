@@ -4,3 +4,6 @@ python-dotenv
 loguru
 Pillow
 psycopg2-binary
+gpxpy
+boto3
+gunicorn
