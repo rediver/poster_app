@@ -15,22 +15,16 @@ export function logInfo(message: string, data?: unknown) {
   if (DEBUG_LOAD) console.log(`[info] ${message}`, data ?? '');
 }
 
+import React, { useEffect } from 'react';
+
 export function useLogMount(name: string) {
-  // Dynamic import to avoid hard dep on React for non-React call sites
-  // Consumers in React components will call this; in non-React modules do nothing
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const React = require('react');
-    const { useEffect } = React as typeof import('react');
-    useEffect(() => {
-      if (DEBUG_LOAD) console.log(`[mount] ${name}`);
-      return () => {
-        if (DEBUG_LOAD) console.log(`[unmount] ${name}`);
-      };
-    }, []);
-  } catch {
-    // ignore when React not available
-  }
+  // This hook is intended to be used inside React components only.
+  useEffect(() => {
+    if (DEBUG_LOAD) console.log(`[mount] ${name}`);
+    return () => {
+      if (DEBUG_LOAD) console.log(`[unmount] ${name}`);
+    };
+  }, [name]);
 }
 
 // Logs all active stylesheets and their rule counts. Useful to verify CSS loading.
@@ -113,7 +107,7 @@ export function assertStylesheetsFromEnv() {
       || (import.meta as any)?.env?.VITE_DEBUG_EXPECT_STYLES
       || '';
     if (!raw) return;
-    const list = raw.split(',').map(s => s.trim()).filter(Boolean);
+const list = raw.split(',').map((s: string) => s.trim()).filter(Boolean);
     if (list.length === 0) return;
     assertStylesheets(list);
   } catch (err) {

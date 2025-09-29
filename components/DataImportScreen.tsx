@@ -25,10 +25,12 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
           const parser = new DOMParser();
           const xml = parser.parseFromString(text, 'application/xml');
           const trkpts = Array.from(xml.getElementsByTagName('trkpt'));
-          const points: LatLng[] = trkpts.map((el) => [
-            parseFloat(el.getAttribute('lat') || '0'),
-            parseFloat(el.getAttribute('lon') || '0'),
-          ]).filter(([lat, lon]) => !Number.isNaN(lat) && !Number.isNaN(lon));
+          const points: LatLng[] = trkpts
+            .map((el) => [
+              parseFloat(el.getAttribute('lat') || '0'),
+              parseFloat(el.getAttribute('lon') || '0'),
+            ] as LatLng)
+            .filter(([lat, lon]) => !Number.isNaN(lat) && !Number.isNaN(lon));
           if (points.length > 1) {
             onGpxImported(points);
           }

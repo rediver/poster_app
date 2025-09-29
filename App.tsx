@@ -94,7 +94,8 @@ const handleGpxImported = (points: LatLng[]) => {
 
   const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || '';
 
-  const handleActivitySelected = async (selection) => {
+  type ActivitySelection = { titleSuggestion?: string; subtitleSuggestion?: string; activityId?: string | number };
+  const handleActivitySelected = async (selection: ActivitySelection) => {
     // Prefill title/subtitle
     setConfig((prev) => ({
       ...prev,
@@ -113,10 +114,12 @@ const handleGpxImported = (points: LatLng[]) => {
           const parser = new DOMParser();
           const xml = parser.parseFromString(gpxText, 'application/xml');
           const trkpts = Array.from(xml.getElementsByTagName('trkpt'));
-          const points: LatLng[] = trkpts.map((el) => [
-            parseFloat(el.getAttribute('lat') || '0'),
-            parseFloat(el.getAttribute('lon') || '0'),
-          ]).filter(([lat, lon]) => !Number.isNaN(lat) && !Number.isNaN(lon));
+          const points: LatLng[] = trkpts
+            .map((el) => [
+              parseFloat(el.getAttribute('lat') || '0'),
+              parseFloat(el.getAttribute('lon') || '0'),
+            ] as LatLng)
+            .filter(([lat, lon]) => !Number.isNaN(lat) && !Number.isNaN(lon));
           if (points.length > 1) setTrackPoints(points);
         }
       } catch (e) {
