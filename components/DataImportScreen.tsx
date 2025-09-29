@@ -46,12 +46,12 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
       const baseRaw = BACKEND_URL || '';
       const base = baseRaw.replace(/\/$/, '');
-      const target = base ? `${base}/api/auth/strava` : '/api/auth/strava';
+      const target = base ? `${base}/strava/auth` : '/strava/auth';
       if (DEBUG_LOAD) logInfo('Strava clicked', { BACKEND_URL: baseRaw, target });
       // Optional preflight when debugging
       if (DEBUG_LOAD && base) {
         try {
-          const health = await fetch(`${base}/api/health`, { credentials: 'include' });
+          const health = await fetch(`${base}/healthz`, { credentials: 'include' });
           logInfo('Backend /api/health status', { status: health.status });
         } catch (e) {
           console.warn('Health check failed before redirect', e);
