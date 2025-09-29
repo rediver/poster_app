@@ -40,7 +40,7 @@ services:
       - key: S3_PUBLIC_BASE_URL
         value: ""
 
-  - type: static_site
+  - type: static
     name: poster-frontend
     autoDeploy: true
     buildCommand: |
