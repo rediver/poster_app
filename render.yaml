@@ -10,8 +10,7 @@ services:
       gunicorn server.app:app -w 2 -k gthread -b 0.0.0.0:$PORT --access-logfile - --error-logfile - --log-level info
     envVars:
       - key: PUBLIC_BASE_URL
-        # Ustaw po pierwszym deployu na pełny URL backendu, np. https://poster-backend.onrender.com
-        value: ""
+        value: "https://poster-backend-94h1.onrender.com"
       - key: SHOPIFY_API_SECRET
         sync: false
       - key: STRAVA_CLIENT_ID
