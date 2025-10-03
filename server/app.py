@@ -112,12 +112,16 @@ def create_app() -> Flask:
 
     @app.get('/strava/auth')
     def strava_auth():
+        logger.info('Strava auth initiated')
         client_id = os.getenv('STRAVA_CLIENT_ID')
         redirect_base = _public_base_url()
+        logger.info(f'Strava config: client_id={client_id}, redirect_base={redirect_base}')
         if not client_id or not redirect_base:
+            logger.error('Strava not configured')
             return jsonify(error='strava_not_configured'), 500
         redirect_uri = f"{redirect_base}/strava/callback"
         state = str(uuid.uuid4())
+        logger.info(f'Generated state: {state}, redirect_uri: {redirect_uri}')
         resp = make_response('', 302)
         resp.set_cookie('strava_oauth_state', state, httponly=True, secure=True, samesite='Lax', max_age=600)
         params = {
@@ -130,51 +134,101 @@ def create_app() -> Flask:
         }
         url = 'https://www.strava.com/oauth/authorize'
         from urllib.parse import urlencode
-        resp.headers['Location'] = f"{url}?{urlencode(params)}"
+        final_url = f"{url}?{urlencode(params)}"
+        logger.info(f'Redirecting to Strava: {final_url}')
+        resp.headers['Location'] = final_url
         return resp
 
     @app.get('/strava/callback')
     def strava_callback():
+        logger.info('Strava callback received')
+        logger.info(f'Request args: {dict(request.args)}')
+        logger.info(f'Request cookies: {dict(request.cookies)}')
+        
         expected_state = request.cookies.get('strava_oauth_state')
         state = request.args.get('state')
         code = request.args.get('code')
+        error = request.args.get('error')
+        
+        logger.info(f'State validation: expected={expected_state}, received={state}')
+        logger.info(f'Authorization code: {code}')
+        
+        if error:
+            logger.error(f'Strava OAuth error: {error}')
+            return f'Strava authorization failed: {error}', 400
+            
+        if not code:
+            logger.error('No authorization code received')
+            return 'No authorization code received', 400
+            
         if not expected_state or expected_state != state:
+            logger.error('State mismatch in OAuth callback')
             return 'State mismatch', 400
+            
         client_id = os.getenv('STRAVA_CLIENT_ID')
         client_secret = os.getenv('STRAVA_CLIENT_SECRET')
         if not client_id or not client_secret:
+            logger.error('Strava credentials not configured')
             return 'Strava not configured', 500
+            
         # Exchange code for token
+        logger.info('Exchanging code for access token')
         token_resp = requests.post('https://www.strava.com/oauth/token', json={
             'client_id': client_id,
             'client_secret': client_secret,
             'code': code,
             'grant_type': 'authorization_code',
         }, timeout=20)
+        
+        logger.info(f'Token exchange response: {token_resp.status_code}')
         if token_resp.status_code != 200:
+            logger.error(f'Token exchange failed: {token_resp.text}')
             return f"Token exchange failed: {token_resp.text}", 400
+            
         data = token_resp.json()
+        logger.info(f'Token data received: {list(data.keys())}')
+        
         access_token = data.get('access_token')
         expires_at = data.get('expires_at')
         athlete = data.get('athlete', {})
         athlete_name = (athlete.get('firstname') or '') + ' ' + (athlete.get('lastname') or '')
+        
+        logger.info(f'OAuth success: athlete={athlete_name}, token_expires={expires_at}')
+        
         # Return a minimal HTML that posts message to opener and closes
         origin = _public_base_url() or '*'
         html = f"""
 <!doctype html>
 <html><body>
+<h2>Strava Authorization Successful!</h2>
+<p>Welcome {athlete_name}! This window should close automatically.</p>
 <script>
+  console.log('Strava callback page loaded');
   (function() {{
-    var msg = {{ type: 'strava_oauth', access_token: '{access_token}', expires_at: {expires_at}, athlete: {repr(athlete_name)} }};
+    var msg = {{ 
+      type: 'strava_oauth', 
+      access_token: '{access_token}', 
+      expires_at: {expires_at}, 
+      athlete: '{athlete_name.replace("'", "\\'")}'  
+    }};
+    console.log('Sending postMessage:', msg);
+    
     if (window.opener) {{
+      console.log('Found opener window, sending message');
       window.opener.postMessage(msg, '*');
+      setTimeout(function() {{
+        console.log('Closing popup window');
+        window.close();
+      }}, 2000);
+    }} else {{
+      console.log('No opener window found');
+      alert('Authorization successful! Please close this window and return to the app.');
     }}
-    window.close();
   }})();
 </script>
-Zamknij to okno.
 </body></html>
 """
+        logger.info('Returning callback HTML page')
         return html
 
     return app

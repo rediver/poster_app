@@ -7,7 +7,7 @@ services:
     buildCommand: |
       pip install -r flask/requirements.txt
     startCommand: |
-      gunicorn server.app:app -w 2 -k gthread -b 0.0.0.0:$PORT
+      gunicorn server.app:app -w 2 -k gthread -b 0.0.0.0:$PORT --access-logfile - --error-logfile - --log-level info
     envVars:
       - key: PUBLIC_BASE_URL
         # Ustaw po pierwszym deployu na pełny URL backendu, np. https://poster-backend.onrender.com
