@@ -48,20 +48,51 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       const base = baseRaw.replace(/\/$/, '');
       const target = base ? `${base}/strava/auth` : '/strava/auth';
       if (DEBUG_LOAD) logInfo('Strava clicked', { BACKEND_URL: baseRaw, target });
+      
+      // Add postMessage listener for OAuth callback
+      const handleMessage = (event: MessageEvent) => {
+        console.log('Received postMessage:', event.data);
+        if (event.data && event.data.type === 'strava_oauth') {
+          console.log('Strava OAuth successful:', event.data.athlete);
+          window.removeEventListener('message', handleMessage);
+          // TODO: Handle successful OAuth (redirect to activities screen, etc.)
+          alert(`Strava OAuth successful! Welcome ${event.data.athlete}. You can now import activities.`);
+        }
+      };
+      
+      console.log('Adding postMessage listener for Strava OAuth');
+      window.addEventListener('message', handleMessage);
+      
       // Optional preflight when debugging
       if (DEBUG_LOAD && base) {
         try {
           const health = await fetch(`${base}/healthz`, { credentials: 'include' });
-          logInfo('Backend /api/health status', { status: health.status });
+          logInfo('Backend health status', { status: health.status });
         } catch (e) {
-          console.warn('Health check failed before redirect', e);
+          console.warn('Health check failed before OAuth', e);
         }
       } else if (DEBUG_LOAD && !base) {
-        console.warn('VITE_BACKEND_URL not set; using relative /api/auth/strava. Ensure same-origin setup or a dev proxy.');
+        console.warn('VITE_BACKEND_URL not set; using relative /strava/auth. Ensure same-origin setup or a dev proxy.');
       }
-      window.location.assign(target);
+      
+      // Open as popup instead of full redirect
+      console.log('Opening Strava OAuth popup:', target);
+      const popup = window.open(target, 'strava_oauth', 'width=600,height=700,scrollbars=yes,resizable=yes');
+      
+      if (!popup) {
+        alert('Popup blocked! Please allow popups for this site and try again.');
+        window.removeEventListener('message', handleMessage);
+        return;
+      }
+      
+      // Fallback: remove listener after 5 minutes in case popup is manually closed
+      setTimeout(() => {
+        window.removeEventListener('message', handleMessage);
+        console.log('Removed Strava postMessage listener (timeout)');
+      }, 300000);
+      
     } catch (e) {
-      console.error('Failed to start Strava OAuth redirect', e);
+      console.error('Failed to start Strava OAuth', e);
     }
   };
 
