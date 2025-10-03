@@ -55,8 +55,16 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.data && event.data.type === 'strava_oauth') {
           console.log('Strava OAuth successful:', event.data.athlete);
           window.removeEventListener('message', handleMessage);
-          // TODO: Handle successful OAuth (redirect to activities screen, etc.)
-          alert(`Strava OAuth successful! Welcome ${event.data.athlete}. You can now import activities.`);
+          // Store OAuth data temporarily in localStorage
+          const authData = {
+            access_token: event.data.access_token,
+            expires_at: event.data.expires_at,
+            athlete: event.data.athlete
+          };
+          localStorage.setItem('strava_auth', JSON.stringify(authData));
+          console.log('Stored Strava auth data, navigating to activities screen');
+          // Call the callback to switch screens
+          onStravaSelected();
         }
       };
       

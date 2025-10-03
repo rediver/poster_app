@@ -231,6 +231,14 @@ def create_app() -> Flask:
         logger.info('Returning callback HTML page')
         return html
 
+    @app.get('/api/strava/activities')
+    def strava_activities():
+        # This endpoint would need to store and retrieve user's access token
+        # For now, return mock data or error
+        logger.info('Strava activities endpoint called')
+        # TODO: Implement proper token storage and retrieval
+        return jsonify(error='activities_endpoint_not_implemented', detail='Need to implement token storage'), 501
+
     return app
 
 
