@@ -19,6 +19,8 @@ services:
         sync: false
       - key: STRAVA_CLIENT_SECRET
         sync: false
+      - key: MAPBOX_ACCESS_TOKEN
+        sync: false
       - key: POSTER_OUT_W
         value: "4800"
       - key: POSTER_OUT_H
@@ -54,7 +56,7 @@ services:
       - type: redirect
         source: /strava/callback
         destination: https://poster-backend-94h1.onrender.com/strava/callback
-      - type: redirect
+      - type: rewrite
         source: /api/*
         destination: https://poster-backend-94h1.onrender.com/api/:splat
     envVars:
