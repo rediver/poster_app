@@ -58,15 +58,18 @@ def get_strava_activities():
         logger.error("❌ Not authenticated with Strava")
         return "Not authenticated with Strava", 401
 
-def get_activity_streams(activity_id):
-    """Retrieve activity streams containing lat/lon and altitude."""
-    access_token = session.get('strava_access_token')
-    logger.debug(f"📥 Downloading streams for activity ID: {activity_id}")
-    if not access_token:
-        logger.error("❌ Not authenticated with Strava")
+def get_activity_streams(activity_id, access_token=None):
+    """Retrieve activity streams containing lat/lon and altitude.
+
+    If access_token is provided, it will be used; otherwise fallback to session token.
+    """
+    token = access_token or session.get('strava_access_token')
+    logger.debug(f"📥 Downloading streams for activity ID: {activity_id} | token_from={'header' if access_token else 'session'} | token_present={bool(token)}")
+    if not token:
+        logger.error("❌ Not authenticated with Strava (no token)")
         raise ValueError("Not authenticated with Strava")
 
-    headers = {"Authorization": f"Bearer {access_token}"}
+    headers = {"Authorization": f"Bearer {token}"}
     url = f"{STRAVA_API_BASE}/activities/{activity_id}/streams"
     params = {"keys": "latlng,altitude", "key_by_type": "true"}
     response = requests.get(url, headers=headers, params=params)
@@ -75,14 +78,17 @@ def get_activity_streams(activity_id):
     return response.json()
 
 
-def get_activity_details(activity_id):
-    """Retrieve detailed activity info (name, distance, moving_time, total_elevation_gain)."""
-    access_token = session.get('strava_access_token')
-    logger.debug(f"📥 Downloading activity details for ID: {activity_id}")
-    if not access_token:
-        logger.error("❌ Not authenticated with Strava")
+def get_activity_details(activity_id, access_token=None):
+    """Retrieve detailed activity info (name, distance, moving_time, total_elevation_gain).
+
+    If access_token is provided, it will be used; otherwise fallback to session token.
+    """
+    token = access_token or session.get('strava_access_token')
+    logger.debug(f"📥 Downloading activity details for ID: {activity_id} | token_from={'header' if access_token else 'session'} | token_present={bool(token)}")
+    if not token:
+        logger.error("❌ Not authenticated with Strava (no token)")
         raise ValueError("Not authenticated with Strava")
-    headers = {"Authorization": f"Bearer {access_token}"}
+    headers = {"Authorization": f"Bearer {token}"}
     url = f"{STRAVA_API_BASE}/activities/{activity_id}"
     resp = requests.get(url, headers=headers)
     logger.debug(f"📡 Activity details status: {resp.status_code}")

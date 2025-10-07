@@ -86,6 +86,17 @@ def root():
 def favicon():
     return ("", 204)
 
+@app.route('/debug/env')
+def debug_env():
+    # Expose key env/config values (do not expose secrets)
+    return jsonify({
+        'FRONTEND_URL': FRONTEND_URL,
+        'STRAVA_CLIENT_ID': 'SET' if STRAVA_CLIENT_ID else 'NOT_SET',
+        'STRAVA_CLIENT_SECRET': 'SET' if STRAVA_CLIENT_SECRET else 'NOT_SET',
+        'MAPBOX_ACCESS_TOKEN': 'SET' if MAPBOX_ACCESS_TOKEN else 'NOT_SET',
+        'DATABASE_URL': 'SET' if DATABASE_URL else 'NOT_SET'
+    })
+
 @app.route('/api/auth/strava')
 def auth_strava():
     logger.debug("🔐 Redirecting to Strava authorization URL...")
@@ -113,6 +124,61 @@ def strava_callback():
         return redirect(f"{redirect_url}#strava=authenticated")
     return "Authentication failed", 400
 
+@app.route('/strava/auth')
+def compat_strava_auth():
+    # Compatibility route so the frontend can call /strava/auth locally
+    # Build Strava OAuth URL, but point redirect_uri to the compat callback which posts a message to the opener
+    logger.debug("Compat: Redirecting to Strava authorization URL...")
+    auth_url = (
+        f"https://www.strava.com/oauth/authorize?client_id={STRAVA_CLIENT_ID}"
+        f"&response_type=code&redirect_uri={url_for('compat_strava_callback', _external=True)}"
+        f"&scope=read,activity:read,activity:read_all"
+    )
+    return redirect(auth_url)
+
+@app.route('/strava/callback')
+def compat_strava_callback():
+    # Compatibility callback that exchanges the code and sends result back to the opener via postMessage
+    code = request.args.get('code')
+    logger.debug(f"Compat: Received code from Strava: {code}")
+    if not code:
+        return "No authorization code received", 400
+    try:
+        access_token, athlete = get_strava_access_token(code)
+        athlete_name = ''
+        if isinstance(athlete, dict):
+            athlete_name = f"{athlete.get('firstname', '')} {athlete.get('lastname', '')}".strip()
+    except Exception as e:
+        logger.exception("Compat: Token exchange failed")
+        return f"Token exchange failed: {e}", 400
+
+    html = f"""
+<!doctype html>
+<html><body>
+<h2>Strava Authorization Successful!</h2>
+<p>Welcome {athlete_name}! This window should close automatically.</p>
+<script>
+  (function() {{
+    var msg = {{ 
+      type: 'strava_oauth', 
+      access_token: '{access_token}', 
+      expires_at: 0, 
+      athlete: '{athlete_name.replace("'", "\\'")}'  
+    }};
+    if (window.opener) {{
+      window.opener.postMessage(msg, '*');
+      setTimeout(function() {{ window.close(); }}, 1500);
+    }} else {{
+      alert('Authorization successful! You can close this window.');
+    }}
+  }})();
+</script>
+</body></html>
+"""
+    resp = make_response(html)
+    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return resp
+
 @app.route('/api/strava/activities')
 def activities():
     try:
@@ -127,11 +193,20 @@ def activities():
 @app.route('/api/strava/download_gpx/<activity_id>')
 def download_gpx(activity_id):
     try:
-        streams = get_activity_streams(activity_id)
+        # Try to use Bearer token from header; fall back to session
+        auth_header = request.headers.get('Authorization', '')
+        token_from = 'session'
+        access_token = None
+        if isinstance(auth_header, str) and auth_header.lower().startswith('bearer '):
+            access_token = auth_header.split(' ', 1)[1].strip()
+            token_from = 'header'
+        logger.debug(f"GPX request for activity {activity_id} | token_from={token_from} | token_present={bool(access_token) or bool(session.get('strava_access_token'))}")
+
+        streams = get_activity_streams(activity_id, access_token=access_token)
         return generate_gpx_response(streams, activity_id)
     except Exception as e:
         logger.error(f"Error downloading GPX for activity ID {activity_id}: {e}")
-        return jsonify({'error': 'Failed to download GPX'}), 500
+        return jsonify({'error': 'Failed to download GPX', 'detail': str(e)}), 500
 
 
 @app.route('/api/logout', methods=['POST'])
@@ -141,16 +216,17 @@ def logout():
     logger.debug("🧹 Session cleared. Logged out.")
     logger.debug(f"🔍 After clearing session: {session}")
     return ("", 204)
-
 @app.route('/api/mapbox/static')
 
 def mapbox_static():
     try:
+        logger.debug(f"Mapbox static request params: {dict(request.args)}")
         w = int(request.args.get('w', '800'))
         h = int(request.args.get('h', '600'))
         style_id = request.args.get('style') or 'mapbox/streets-v11'
         token = MAPBOX_ACCESS_TOKEN
         if not token:
+            logger.error("MAPBOX_ACCESS_TOKEN not configured on server")
             return jsonify({"error": "MAPBOX_ACCESS_TOKEN not configured on server"}), 500
         # Clamp size to Mapbox limits (1280), no @2x here in proxy (frontend can request exact preview size)
         w_req = max(1, min(1280, w))
@@ -179,6 +255,7 @@ def mapbox_static():
 
         logger.debug(f"🗺️ Proxy Mapbox static: {static_url}")
         resp = requests.get(static_url)
+        logger.debug(f"Mapbox response status: {resp.status_code}")
         if resp.status_code != 200:
             logger.error(f"Mapbox static error {resp.status_code}: {resp.text[:200]}")
             return jsonify({"error": "Failed to fetch map image"}), 502

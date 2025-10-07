@@ -106,8 +106,24 @@ const handleGpxImported = (points: LatLng[]) => {
     // Try to fetch GPX for the activity, parse to trackPoints
     if (selection && selection.activityId) {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/strava/download_gpx/${selection.activityId}`, {
-          credentials: 'include'
+        const headers: Record<string, string> = {};
+        try {
+          const authDataStr = localStorage.getItem('strava_auth');
+          if (authDataStr) {
+            const authData = JSON.parse(authDataStr);
+            if (authData && authData.access_token) {
+              headers['Authorization'] = `Bearer ${authData.access_token}`;
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to parse strava_auth from localStorage:', e);
+        }
+        const url = `${BACKEND_URL}/api/strava/download_gpx/${selection.activityId}`;
+        const hasToken = Boolean(headers['Authorization']);
+        console.log('GPX fetch start', { url, hasToken, BACKEND_URL });
+        const res = await fetch(url, {
+          credentials: 'include',
+          headers
         });
         if (res.ok) {
           const gpxText = await res.text();
@@ -120,10 +136,14 @@ const handleGpxImported = (points: LatLng[]) => {
               parseFloat(el.getAttribute('lon') || '0'),
             ] as LatLng)
             .filter(([lat, lon]) => !Number.isNaN(lat) && !Number.isNaN(lon));
+          console.log('GPX fetched & parsed', { count: points.length });
           if (points.length > 1) setTrackPoints(points);
+        } else {
+          const body = await res.text().catch(() => '');
+          console.error('GPX fetch failed', { status: res.status, body: body.slice(0, 300) });
         }
       } catch (e) {
-        console.warn('Failed to fetch/parse GPX:', e);
+        console.error('Failed to fetch/parse GPX:', e);
       }
     }
 
@@ -301,8 +321,9 @@ const handleGpxImported = (points: LatLng[]) => {
                 const sizeH = Math.round(previewHeight);
                 const center = `${centerLon},${centerLat}`;
                 const url = `${BACKEND_URL}/api/mapbox/static?style=${encodeURIComponent(styleId)}&center=${encodeURIComponent(center)}&zoom=${encodeURIComponent(String(zoom))}&w=${sizeW}&h=${sizeH}`;
+                console.log('Editor map image URL', { url, sizeW, sizeH, zoom, styleId });
                 return (
-                  <img src={url} alt="map" className="absolute inset-0 w-full h-full object-fill z-0" />
+                  <img src={url} alt="map" className="absolute inset-0 w-full h-full object-fill z-0" onError={(e) => console.error('Editor map image failed', url, e)} />
                 );
               })()}
 

@@ -110,11 +110,13 @@ export function StravaActivitiesScreen({ onActivitySelected, posterConfig }: Str
         // Get stored auth data
         const authDataStr = localStorage.getItem('strava_auth');
         if (!authDataStr) {
+          console.error('No strava_auth in localStorage');
           throw new Error('No Strava authentication found. Please login again.');
         }
         
         const authData = JSON.parse(authDataStr);
         const { access_token } = authData;
+        console.log('StravaActivities: token present?', Boolean(access_token));
         
         if (!access_token) {
           throw new Error('No access token found. Please login again.');
@@ -123,6 +125,7 @@ export function StravaActivitiesScreen({ onActivitySelected, posterConfig }: Str
         // Fetch activities directly from Strava API
         const url = 'https://www.strava.com/api/v3/athlete/activities?per_page=30';
         if (DEBUG_LOAD) logInfo('Fetching Strava activities', { url });
+        console.log('Fetching Strava activities', { url });
         
         const res = await fetch(url, {
           headers: {
@@ -133,10 +136,12 @@ export function StravaActivitiesScreen({ onActivitySelected, posterConfig }: Str
         if (!res.ok) {
           const txt = await res.text().catch(() => '');
           if (DEBUG_LOAD) logInfo('Strava activities response not OK', { status: res.status, body: txt.slice(0, 300) });
+          console.error('Strava activities fetch failed', { status: res.status, body: txt.slice(0, 300) });
           throw new Error(`Failed to fetch activities (${res.status})`);
         }
         
         const apiActs: ActivityApi[] = await res.json();
+        console.log('Strava activities loaded', { count: apiActs?.length || 0 });
         // Only Run or Ride per requirements
         const filtered = apiActs.filter(a => a.type === 'Run' || a.type === 'Ride');
         const fmt = (m: number) => `${(m / 1000).toFixed(2)} km`;

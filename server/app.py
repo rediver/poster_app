@@ -20,6 +20,16 @@ load_dotenv()
 def create_app() -> Flask:
     app = Flask(__name__)
 
+    # CORS (allow frontend origin to call API with Authorization header)
+    try:
+        from flask_cors import CORS  # type: ignore
+        frontend_origin = os.getenv('FRONTEND_ORIGIN') or os.getenv('FRONTEND_URL')
+        if frontend_origin:
+            CORS(app, supports_credentials=True, resources={r"/api/*": {"origins": [frontend_origin], "allow_headers": ["Authorization", "Content-Type"]}})
+    except Exception:
+        # If flask-cors is not installed locally, continue without CORS (Render installs it via requirements)
+        pass
+
     # Config
     app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_UPLOAD_MB', '10')) * 1024 * 1024
     storage_dir = os.getenv('POSTER_STORAGE_DIR', os.path.join(os.path.dirname(__file__), 'storage'))
@@ -123,7 +133,8 @@ def create_app() -> Flask:
         state = str(uuid.uuid4())
         logger.info(f'Generated state: {state}, redirect_uri: {redirect_uri}')
         resp = make_response('', 302)
-        resp.set_cookie('strava_oauth_state', state, httponly=True, secure=True, samesite='Lax', max_age=600)
+        secure_cookie = (redirect_base.startswith('https://') if redirect_base else False)
+        resp.set_cookie('strava_oauth_state', state, httponly=True, secure=secure_cookie, samesite='Lax', max_age=600)
         params = {
             'client_id': client_id,
             'redirect_uri': redirect_uri,
@@ -231,6 +242,27 @@ def create_app() -> Flask:
         logger.info('Returning callback HTML page')
         return html
 
+    @app.get('/api/strava/download_gpx/<activity_id>')
+    def api_strava_download_gpx(activity_id: str):
+        auth_header = request.headers.get('Authorization', '')
+        access_token = None
+        try:
+            if auth_header.lower().startswith('bearer '):
+                access_token = auth_header.split(' ', 1)[1]
+        except Exception:
+            access_token = None
+        if not access_token:
+            return jsonify(error='missing_access_token', detail='Provide Bearer token in Authorization header'), 401
+        try:
+            points = fetch_strava_latlng(access_token=access_token, activity_id=str(activity_id))
+            gpx_text = gpx_from_points(points)
+            resp = make_response(gpx_text)
+            resp.headers['Content-Type'] = 'application/gpx+xml; charset=utf-8'
+            return resp
+        except Exception as e:
+            logger.exception('Failed to build GPX from Strava')
+            return jsonify(error='strava_gpx_failed', detail=str(e)), 500
+
     @app.get('/api/strava/activities')
     def strava_activities():
         # This endpoint would need to store and retrieve user's access token
@@ -282,6 +314,8 @@ def fetch_strava_latlng(access_token: str, activity_id: str) -> List[tuple]:
         raise RuntimeError('No latlng stream available')
     # convert to (lon, lat)
     return [(pt[1], pt[0]) for pt in latlng]
+
+app = create_app()
 
 
 def render_poster_from_gpx(gpx_text: str, out_w: int = 1600, out_h: int = 1200, margin: int = 80) -> Tuple[bytes, int, int]:

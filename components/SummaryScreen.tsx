@@ -159,13 +159,14 @@ export function SummaryScreen({ config, trackPoints, onBack }: SummaryScreenProp
                 const sizeH = Math.round(previewHeight);
                 const center = `${centerLon},${centerLat}`;
                 const url = `${BACKEND_URL}/api/mapbox/static?style=${encodeURIComponent(styleId)}&center=${encodeURIComponent(center)}&zoom=${encodeURIComponent(String(zoom))}&w=${sizeW}&h=${sizeH}`;
+                console.log('Summary map image URL', { url, sizeW, sizeH, zoom, styleId });
                 const filterStr = isDark 
                   ? 'grayscale(1) saturate(0) contrast(0.95) brightness(0.6)'
                   : 'grayscale(1) saturate(0) contrast(0.85) brightness(1.05)';
                 const overlayColor = isDark ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.25)';
                 return (
                   <>
-                    <img src={url} alt="map" className="absolute inset-0 w-full h-full object-fill z-0" style={{ filter: filterStr, opacity: 0.95 }} />
+                    <img src={url} alt="map" className="absolute inset-0 w-full h-full object-fill z-0" style={{ filter: filterStr, opacity: 0.95 }} onError={(e) => console.error('Summary map image failed', url, e)} />
                     <div className="absolute inset-0 pointer-events-none z-0" style={{ backgroundColor: overlayColor }} />
                   </>
                 );
