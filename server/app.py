@@ -46,7 +46,8 @@ def create_app() -> Flask:
             'PUBLIC_BASE_URL': os.getenv('PUBLIC_BASE_URL') or 'NOT_SET',
             'STRAVA_CLIENT_ID': os.getenv('STRAVA_CLIENT_ID') or 'NOT_SET',
             'STRAVA_CLIENT_SECRET': 'SET' if os.getenv('STRAVA_CLIENT_SECRET') else 'NOT_SET',
-            'SHOPIFY_API_SECRET': 'SET' if os.getenv('SHOPIFY_API_SECRET') else 'NOT_SET'
+            'SHOPIFY_API_SECRET': 'SET' if os.getenv('SHOPIFY_API_SECRET') else 'NOT_SET',
+            'MAPBOX_ACCESS_TOKEN': 'SET' if os.getenv('MAPBOX_ACCESS_TOKEN') else 'NOT_SET'
         })
 
     @app.get('/proxy/ping')
@@ -270,6 +271,57 @@ def create_app() -> Flask:
         logger.info('Strava activities endpoint called')
         # TODO: Implement proper token storage and retrieval
         return jsonify(error='activities_endpoint_not_implemented', detail='Need to implement token storage'), 501
+
+    @app.get('/api/mapbox/static')
+    def mapbox_static():
+        try:
+            logger.info(f"Mapbox static request args: {dict(request.args)}")
+            w = int(request.args.get('w', '800'))
+            h = int(request.args.get('h', '600'))
+            style_id = request.args.get('style') or 'mapbox/streets-v11'
+            token = os.getenv('MAPBOX_ACCESS_TOKEN')
+            if not token:
+                logger.error('MAPBOX_ACCESS_TOKEN not configured on server')
+                return jsonify(error='MAPBOX_ACCESS_TOKEN not configured on server'), 500
+
+            # Clamp size
+            w_req = max(1, min(1280, w))
+            h_req = max(1, min(1280, h))
+
+            center = request.args.get('center')
+            zoom = request.args.get('zoom')
+            bbox = request.args.get('bbox')
+            bearing = request.args.get('bearing', '0')
+            pitch = request.args.get('pitch', '0')
+
+            if center:
+                z = zoom if (zoom and zoom.strip() != '') else '12'
+                static_url = (
+                    f"https://api.mapbox.com/styles/v1/{style_id}/static/"
+                    f"{center},{z},{bearing},{pitch}/{w_req}x{h_req}?access_token={token}"
+                )
+            elif bbox:
+                static_url = (
+                    f"https://api.mapbox.com/styles/v1/{style_id}/static/"
+                    f"{bbox}/{w_req}x{h_req}?access_token={token}"
+                )
+            else:
+                return jsonify(error='Provide center (and optional zoom) or bbox'), 400
+
+            logger.info(f"Proxy Mapbox static URL: {static_url}")
+            resp = requests.get(static_url, timeout=30)
+            if resp.status_code != 200:
+                logger.error(f"Mapbox static error {resp.status_code}: {resp.text[:200]}")
+                return jsonify(error='Failed to fetch map image', status=resp.status_code), 502
+
+            out = make_response(resp.content)
+            out.headers['Content-Type'] = resp.headers.get('Content-Type', 'image/png')
+            # Optional caching header
+            out.headers['Cache-Control'] = 'public, max-age=300'
+            return out
+        except Exception:
+            logger.exception('Error proxying Mapbox static image')
+            return jsonify(error='Internal error fetching map image'), 500
 
     return app
 
