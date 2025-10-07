@@ -57,8 +57,8 @@ services:
         source: /strava/callback
         destination: https://poster-backend-94h1.onrender.com/strava/callback
       - type: rewrite
-        source: /api/*
-        destination: https://poster-backend-94h1.onrender.com/api/:splat
+        source: /api/(.*)
+        destination: https://poster-backend-94h1.onrender.com/api/$1
     envVars:
       # Opcjonalnie, gdy będziesz korzystać z frontu (Embedded UI)
       - key: VITE_BACKEND_URL
