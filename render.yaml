@@ -60,6 +60,6 @@ services:
         source: /api/(.*)
         destination: https://poster-backend-94h1.onrender.com/api/$1
     envVars:
-      # Opcjonalnie, gdy będziesz korzystać z frontu (Embedded UI)
+      # Frontend will call backend directly (CORS enabled on backend)
       - key: VITE_BACKEND_URL
-        value: ""
+        value: "https://poster-backend-94h1.onrender.com"
