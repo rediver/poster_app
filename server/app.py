@@ -118,23 +118,43 @@ def create_app() -> Flask:
         Render a poster image from provided points and store it, returning a public URL.
         Expected JSON body: { "points": [[lat, lon], ...] }
         """
+        try:
+            raw_len = len(request.data or b'')
+        except Exception:
+            raw_len = -1
+        logger.info(f"/api/generate: content_type={request.content_type} raw_len={raw_len}")
         data = request.get_json(silent=True) or {}
+        logger.info(f"/api/generate: parsed_json_keys={list(data.keys()) if isinstance(data, dict) else type(data)}")
         pts = data.get('points') or data.get('latlng') or []
         if not isinstance(pts, list) or not pts:
+            logger.warning('/api/generate: missing or invalid points field')
             return jsonify(error='missing_points', detail='Provide points=[[lat, lon], ...]'), 400
+        logger.info(f"/api/generate: points_count={len(pts)} sample={pts[:3]}")
         try:
             # Convert to (lon, lat) pairs
             lonlat: List[tuple] = []
             for p in pts:
                 if isinstance(p, (list, tuple)) and len(p) >= 2:
-                    lat, lon = float(p[0]), float(p[1])
-                    lonlat.append((lon, lat))
+                    try:
+                        lat, lon = float(p[0]), float(p[1])
+                        lonlat.append((lon, lat))
+                    except Exception as conv_e:
+                        logger.warning(f"/api/generate: failed to convert point {p}: {conv_e}")
+                else:
+                    logger.warning(f"/api/generate: skipping invalid point structure: {p}")
             if not lonlat:
-                return jsonify(error='invalid_points'), 400
+                logger.warning('/api/generate: lonlat empty after conversion')
+                return jsonify(error='invalid_points', detail='No valid points after conversion'), 400
+            logger.info(f"/api/generate: lonlat_count={len(lonlat)} sample={lonlat[:3]}")
+            w, h = _highres_w(), _highres_h()
+            logger.info(f"/api/generate: rendering at {w}x{h}")
             gpx_text = gpx_from_points(lonlat)
-            img_bytes, width, height = render_poster_from_gpx(gpx_text, out_w=_highres_w(), out_h=_highres_h())
+            logger.info(f"/api/generate: gpx_length={len(gpx_text)}")
+            img_bytes, width, height = render_poster_from_gpx(gpx_text, out_w=w, out_h=h)
+            logger.info(f"/api/generate: render complete, image_bytes={len(img_bytes)} size={width}x{height}")
             filename = f"{uuid.uuid4()}.png"
             file_url, key = store_image(img_bytes, filename_hint=filename)
+            logger.info(f"/api/generate: stored image url={file_url} key={key}")
             return jsonify(ok=True, id=key, preview_url=file_url, width=width, height=height)
         except Exception as e:
             logger.exception('API generate failed')
@@ -147,15 +167,18 @@ def create_app() -> Flask:
         Expected JSON body similar to /proxy/create_product.
         """
         payload = request.get_json(silent=True) or {}
+        logger.info(f"/api/create_product: payload_keys={list(payload.keys())}")
         image_url = payload.get('image_url') or payload.get('preview_url')
         if image_url and image_url.startswith('/'):
             base = _public_base_url()
             if base:
                 image_url = f"{base.rstrip('/')}{image_url}"
+        logger.info(f"/api/create_product: image_url={image_url}")
 
         shop = (os.getenv('SHOPIFY_SHOP_URL') or os.getenv('SHOPIFY_SHOP') or os.getenv('SHOPIFY_STORE') or '').strip()
         access_token = (os.getenv('SHOPIFY_ADMIN_ACCESS_TOKEN') or os.getenv('SHOPIFY_ACCESS_TOKEN') or '').strip()
         if not shop or not access_token:
+            logger.error('/api/create_product: Shopify not configured')
             return jsonify(error='shopify_not_configured', detail='Set SHOPIFY_SHOP_URL and SHOPIFY_ADMIN_ACCESS_TOKEN'), 500
 
         if shop.startswith('http://') or shop.startswith('https://'):
@@ -163,6 +186,7 @@ def create_app() -> Flask:
             shop_domain = urlparse(shop).netloc
         else:
             shop_domain = shop
+        logger.info(f"/api/create_product: shop_domain={shop_domain}")
 
         title = payload.get('title') or f"Poster {payload.get('poster_id') or str(uuid.uuid4())[:8]}"
         vendor = os.getenv('POSTER_VENDOR') or 'Poster App'
@@ -170,6 +194,7 @@ def create_app() -> Flask:
         status = (os.getenv('POSTER_PRODUCT_STATUS') or 'draft').lower()
         price = os.getenv('POSTER_PRODUCT_PRICE')
         tags = os.getenv('POSTER_PRODUCT_TAGS') or 'poster,generated'
+        logger.info(f"/api/create_product: title='{title}' status={status} price={price} tags={tags}")
 
         product = {
             'title': title,
@@ -198,8 +223,9 @@ def create_app() -> Flask:
             logger.exception('Failed calling Shopify Admin API')
             return jsonify(error='shopify_request_failed', detail=str(e)), 502
 
+        logger.info(f"/api/create_product: Shopify response status={resp.status_code}")
         if resp.status_code not in (200, 201):
-            logger.error(f"Shopify API error {resp.status_code}: {resp.text[:300]}")
+            logger.error(f"/api/create_product: API error {resp.status_code}: {resp.text[:300]}")
             return jsonify(error='shopify_api_error', status=resp.status_code, detail=resp.text), 502
 
         data = resp.json()
@@ -208,6 +234,7 @@ def create_app() -> Flask:
         handle = created.get('handle')
         online_url = f"https://{shop_domain}/products/{handle}" if handle else None
         admin_url = f"https://{shop_domain}/admin/products/{product_id}" if product_id else None
+        logger.info(f"/api/create_product: product_id={product_id} handle={handle} product_url={online_url}")
 
         return jsonify(ok=True, product_id=product_id, handle=handle, product_url=online_url, admin_url=admin_url, product=created)
 
@@ -471,6 +498,7 @@ app = create_app()
 
 
 def render_poster_from_gpx(gpx_text: str, out_w: int = 1600, out_h: int = 1200, margin: int = 80) -> Tuple[bytes, int, int]:
+    logger.info(f"render_poster_from_gpx: start out_w={out_w} out_h={out_h} margin={margin} gpx_len={len(gpx_text) if gpx_text else 0}")
     # Parse GPX
     gpx = gpxpy.parse(io.StringIO(gpx_text))
 
@@ -481,6 +509,7 @@ def render_poster_from_gpx(gpx_text: str, out_w: int = 1600, out_h: int = 1200, 
             for p in segment.points:
                 points.append((p.longitude, p.latitude))
 
+    logger.info(f"render_poster_from_gpx: collected_points={len(points)}")
     if not points:
         raise ValueError('No points in GPX')
 
@@ -490,6 +519,7 @@ def render_poster_from_gpx(gpx_text: str, out_w: int = 1600, out_h: int = 1200, 
     miny, maxy = min(ys), max(ys)
     rangex = maxx - minx or 1e-9
     rangey = maxy - miny or 1e-9
+    logger.info(f"render_poster_from_gpx: bbox lon=({minx},{maxx}) lat=({miny},{maxy}) range=({rangex},{rangey})")
 
     # Fit into canvas preserving aspect ratio
     drawable_w = out_w - 2 * margin
@@ -497,10 +527,12 @@ def render_poster_from_gpx(gpx_text: str, out_w: int = 1600, out_h: int = 1200, 
     scale_x = drawable_w / rangex
     scale_y = drawable_h / rangey
     scale = min(scale_x, scale_y)
+    logger.info(f"render_poster_from_gpx: drawable={drawable_w}x{drawable_h} scale={scale:.6f}")
 
     # Centering offsets
     offset_x = (out_w - (rangex * scale)) / 2
     offset_y = (out_h - (rangey * scale)) / 2
+    logger.info(f"render_poster_from_gpx: offsets x={offset_x:.2f} y={offset_y:.2f}")
 
     # Create image
     img = Image.new('RGB', (out_w, out_h), color=(255, 255, 255))
@@ -526,7 +558,9 @@ def render_poster_from_gpx(gpx_text: str, out_w: int = 1600, out_h: int = 1200, 
 
     buf = io.BytesIO()
     img.save(buf, format='PNG', optimize=True)
-    return buf.getvalue(), out_w, out_h
+    out = buf.getvalue()
+    logger.info(f"render_poster_from_gpx: done png_bytes={len(out)}")
+    return out, out_w, out_h
 
 
 app = create_app()
