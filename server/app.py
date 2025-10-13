@@ -2,6 +2,7 @@ import io
 import os
 import uuid
 from typing import Tuple, List
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from flask import Flask, abort, jsonify, request, send_from_directory, make_response
@@ -195,10 +196,9 @@ def create_app() -> Flask:
         title = payload.get('title') or f"Poster {payload.get('poster_id') or str(uuid.uuid4())[:8]}"
         vendor = os.getenv('POSTER_VENDOR') or 'Poster App'
         product_type = os.getenv('POSTER_PRODUCT_TYPE') or 'Poster'
-        status = (os.getenv('POSTER_PRODUCT_STATUS') or 'draft').lower()
+        status = (os.getenv('POSTER_PRODUCT_STATUS') or 'active').lower()
         price = os.getenv('POSTER_PRODUCT_PRICE')
         tags = os.getenv('POSTER_PRODUCT_TAGS') or 'poster,generated'
-        logger.info(f"/api/create_product: title='{title}' status={status} price={price} tags={tags}")
 
         product = {
             'title': title,
@@ -208,12 +208,21 @@ def create_app() -> Flask:
             'status': status,
             'tags': tags,
         }
+        # Publish to Online Store by default unless explicitly disabled
+        publish_flag = (os.getenv('POSTER_PUBLISH') or 'true').lower() in ('1', 'true', 'yes', 'on')
+        if status == 'active' and publish_flag:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            product['published_at'] = now_iso
+            product['published_scope'] = 'web'
+            logger.info(f"/api/create_product: publishing product now published_at={now_iso}")
+
         if image_url:
             product['images'] = [{'src': image_url}]
         if price is not None and str(price).strip() != '':
             product['variants'] = [{
                 'option1': 'Default',
                 'price': str(price).strip(),
+            }]
             }]
 
         api_url = f"https://{shop_domain}/admin/api/2024-07/products.json"
