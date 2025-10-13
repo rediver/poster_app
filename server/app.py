@@ -111,6 +111,106 @@ def create_app() -> Flask:
     def files(filename: str):
         return send_from_directory(app.config['POSTER_STORAGE_DIR'], filename, as_attachment=False)
 
+    # ---------- Public API (for SPA frontend) ----------
+    @app.post('/api/generate')
+    def api_generate():
+        """
+        Render a poster image from provided points and store it, returning a public URL.
+        Expected JSON body: { "points": [[lat, lon], ...] }
+        """
+        data = request.get_json(silent=True) or {}
+        pts = data.get('points') or data.get('latlng') or []
+        if not isinstance(pts, list) or not pts:
+            return jsonify(error='missing_points', detail='Provide points=[[lat, lon], ...]'), 400
+        try:
+            # Convert to (lon, lat) pairs
+            lonlat: List[tuple] = []
+            for p in pts:
+                if isinstance(p, (list, tuple)) and len(p) >= 2:
+                    lat, lon = float(p[0]), float(p[1])
+                    lonlat.append((lon, lat))
+            if not lonlat:
+                return jsonify(error='invalid_points'), 400
+            gpx_text = gpx_from_points(lonlat)
+            img_bytes, width, height = render_poster_from_gpx(gpx_text, out_w=_highres_w(), out_h=_highres_h())
+            filename = f"{uuid.uuid4()}.png"
+            file_url, key = store_image(img_bytes, filename_hint=filename)
+            return jsonify(ok=True, id=key, preview_url=file_url, width=width, height=height)
+        except Exception as e:
+            logger.exception('API generate failed')
+            return jsonify(error='render_failed', detail=str(e)), 500
+
+    @app.post('/api/create_product')
+    def api_create_product():
+        """
+        Create a Shopify product with provided image URL (Admin API).
+        Expected JSON body similar to /proxy/create_product.
+        """
+        payload = request.get_json(silent=True) or {}
+        image_url = payload.get('image_url') or payload.get('preview_url')
+        if image_url and image_url.startswith('/'):
+            base = _public_base_url()
+            if base:
+                image_url = f"{base.rstrip('/')}{image_url}"
+
+        shop = (os.getenv('SHOPIFY_SHOP_URL') or os.getenv('SHOPIFY_SHOP') or os.getenv('SHOPIFY_STORE') or '').strip()
+        access_token = (os.getenv('SHOPIFY_ADMIN_ACCESS_TOKEN') or os.getenv('SHOPIFY_ACCESS_TOKEN') or '').strip()
+        if not shop or not access_token:
+            return jsonify(error='shopify_not_configured', detail='Set SHOPIFY_SHOP_URL and SHOPIFY_ADMIN_ACCESS_TOKEN'), 500
+
+        if shop.startswith('http://') or shop.startswith('https://'):
+            from urllib.parse import urlparse
+            shop_domain = urlparse(shop).netloc
+        else:
+            shop_domain = shop
+
+        title = payload.get('title') or f"Poster {payload.get('poster_id') or str(uuid.uuid4())[:8]}"
+        vendor = os.getenv('POSTER_VENDOR') or 'Poster App'
+        product_type = os.getenv('POSTER_PRODUCT_TYPE') or 'Poster'
+        status = (os.getenv('POSTER_PRODUCT_STATUS') or 'draft').lower()
+        price = os.getenv('POSTER_PRODUCT_PRICE')
+        tags = os.getenv('POSTER_PRODUCT_TAGS') or 'poster,generated'
+
+        product = {
+            'title': title,
+            'body_html': 'Generated poster product',
+            'vendor': vendor,
+            'product_type': product_type,
+            'status': status,
+            'tags': tags,
+        }
+        if image_url:
+            product['images'] = [{'src': image_url}]
+        if price is not None and str(price).strip() != '':
+            product['variants'] = [{
+                'option1': 'Default',
+                'price': str(price).strip(),
+            }]
+
+        api_url = f"https://{shop_domain}/admin/api/2024-07/products.json"
+        headers = {
+            'X-Shopify-Access-Token': access_token,
+            'Content-Type': 'application/json',
+        }
+        try:
+            resp = requests.post(api_url, json={'product': product}, headers=headers, timeout=30)
+        except Exception as e:
+            logger.exception('Failed calling Shopify Admin API')
+            return jsonify(error='shopify_request_failed', detail=str(e)), 502
+
+        if resp.status_code not in (200, 201):
+            logger.error(f"Shopify API error {resp.status_code}: {resp.text[:300]}")
+            return jsonify(error='shopify_api_error', status=resp.status_code, detail=resp.text), 502
+
+        data = resp.json()
+        created = data.get('product') or data
+        product_id = created.get('id')
+        handle = created.get('handle')
+        online_url = f"https://{shop_domain}/products/{handle}" if handle else None
+        admin_url = f"https://{shop_domain}/admin/products/{product_id}" if product_id else None
+
+        return jsonify(ok=True, product_id=product_id, handle=handle, product_url=online_url, admin_url=admin_url, product=created)
+
     @app.get('/proxy/config')
     def proxy_config():
         if not verify_app_proxy_signature(request):

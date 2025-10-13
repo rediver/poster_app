@@ -51,8 +51,56 @@ export function SummaryScreen({ config, trackPoints, onBack }: SummaryScreenProp
     return () => { ro ? ro.disconnect() : window.removeEventListener('resize', update); };
   }, []);
 
-  const handleCheckout = () => {
-    alert('Checkout functionality would be implemented here');
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleCheckout = async () => {
+    if (submitting) return;
+    setErrorMsg(null);
+    setSubmitting(true);
+    try {
+      // 1) Ask backend to render and store the poster image from track points
+      const genRes = await fetch(`${BACKEND_URL}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ points: trackPoints })
+      });
+      const genData = await genRes.json().catch(() => ({}));
+      if (!genRes.ok || !genData.ok) {
+        throw new Error(genData.error || `Render failed (${genRes.status})`);
+      }
+
+      // 2) Create a Shopify product using the rendered image
+      const createRes = await fetch(`${BACKEND_URL}/api/create_product`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          image_url: genData.preview_url,
+          title: config.title && config.title.trim() ? config.title.trim() : undefined,
+          poster_id: genData.id,
+          width: genData.width,
+          height: genData.height,
+        })
+      });
+      const createData = await createRes.json().catch(() => ({}));
+      if (!createRes.ok || !createData.ok) {
+        throw new Error(createData.error || `Create product failed (${createRes.status})`);
+      }
+
+      // 3) Redirect to new product page
+      if (createData.product_url) {
+        window.location.href = createData.product_url;
+      } else if (createData.admin_url) {
+        window.location.href = createData.admin_url;
+      }
+    } catch (e: any) {
+      console.error('Confirm/create product failed', e);
+      setErrorMsg(e?.message || 'Failed to create product');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const getLayoutClasses = () => {
@@ -332,13 +380,17 @@ export function SummaryScreen({ config, trackPoints, onBack }: SummaryScreenProp
                 
                 <Button 
                   onClick={handleCheckout}
-                  disabled={!isReviewed}
+                  disabled={!isReviewed || submitting}
                   className="flex-1 h-12 bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Checkout
+                  {submitting ? 'Creating…' : 'Confirm'}
                 </Button>
               </div>
             </div>
+
+            {errorMsg && (
+              <div className="text-sm text-red-600 mt-2">{errorMsg}</div>
+            )}
           </div>
         </div>
       </div>

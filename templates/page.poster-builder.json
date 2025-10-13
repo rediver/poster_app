@@ -1,0 +1,11 @@
+{
+  "sections": {
+    "main": {
+      "type": "poster-builder",
+      "settings": {}
+    }
+  },
+  "order": [
+    "main"
+  ]
+}
