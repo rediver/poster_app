@@ -223,7 +223,6 @@ def create_app() -> Flask:
                 'option1': 'Default',
                 'price': str(price).strip(),
             }]
-            }]
 
         api_url = f"https://{shop_domain}/admin/api/2024-07/products.json"
         headers = {
@@ -507,7 +506,6 @@ def fetch_strava_latlng(access_token: str, activity_id: str) -> List[tuple]:
     # convert to (lon, lat)
     return [(pt[1], pt[0]) for pt in latlng]
 
-app = create_app()
 
 
 def render_poster_from_gpx(gpx_text: str, out_w: int = 1600, out_h: int = 1200, margin: int = 80) -> Tuple[bytes, int, int]:
