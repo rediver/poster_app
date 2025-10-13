@@ -4,6 +4,7 @@ from typing import Tuple
 
 import boto3
 from botocore.client import Config
+from botocore.exceptions import NoCredentialsError, ClientError, BotoCoreError
 from loguru import logger
 
 
@@ -29,39 +30,49 @@ def store_image(img_bytes: bytes, filename_hint: str | None = None) -> Tuple[str
     mode = (os.getenv('POSTER_STORAGE_MODE') or 'local').lower()
     key_prefix = os.getenv('S3_KEY_PREFIX', 'posters/')
 
+    def _store_local() -> Tuple[str, str]:
+        storage_dir = os.getenv('POSTER_STORAGE_DIR')
+        if not storage_dir:
+            # default relative to server package
+            here = os.path.dirname(__file__)
+            storage_dir = os.path.join(here, 'storage')
+        os.makedirs(storage_dir, exist_ok=True)
+        file_id = str(uuid.uuid4())
+        name = filename_hint or f'{file_id}.png'
+        path = os.path.join(storage_dir, name)
+        with open(path, 'wb') as f:
+            f.write(img_bytes)
+        public_base = os.getenv('PUBLIC_BASE_URL')
+        if public_base:
+            url = f"{public_base.rstrip('/')}/files/{name}"
+        else:
+            url = f"/files/{name}"
+        logger.info(f'Saved locally: {path}')
+        return url, path
+
     if mode == 's3':
         bucket = os.getenv('S3_BUCKET')
-        if not bucket:
-            raise RuntimeError('S3_BUCKET is required when POSTER_STORAGE_MODE=s3')
+        if not bucket or bucket == 'your-bucket-name':
+            logger.warning('S3 mode requested but S3_BUCKET is missing or placeholder; falling back to local storage')
+            return _store_local()
         file_id = str(uuid.uuid4())
         name = filename_hint or f'{file_id}.png'
         key = f"{key_prefix}{name}"
         client = _s3_client()
         extra = {'ContentType': 'image/png'}
-        if (os.getenv('S3_PUBLIC_READ') or 'false').lower() in ('1','true','yes'): 
+        if (os.getenv('S3_PUBLIC_READ') or 'false').lower() in ('1','true','yes'):
             extra['ACL'] = 'public-read'
-        client.put_object(Bucket=bucket, Key=key, Body=img_bytes, **extra)
-        url = _s3_public_url(bucket, key)
-        logger.info(f'Uploaded to S3: s3://{bucket}/{key}')
-        return url, key
+        try:
+            client.put_object(Bucket=bucket, Key=key, Body=img_bytes, **extra)
+            url = _s3_public_url(bucket, key)
+            logger.info(f'Uploaded to S3: s3://{bucket}/{key}')
+            return url, key
+        except (NoCredentialsError, ClientError, BotoCoreError) as e:
+            logger.warning(f'S3 upload failed ({type(e).__name__}): {e}; falling back to local storage')
+            return _store_local()
+        except Exception as e:
+            logger.exception('Unexpected error during S3 upload; falling back to local storage')
+            return _store_local()
 
-    # local
-    storage_dir = os.getenv('POSTER_STORAGE_DIR')
-    if not storage_dir:
-        # default relative to server package
-        here = os.path.dirname(__file__)
-        storage_dir = os.path.join(here, 'storage')
-    os.makedirs(storage_dir, exist_ok=True)
-    file_id = str(uuid.uuid4())
-    name = filename_hint or f'{file_id}.png'
-    path = os.path.join(storage_dir, name)
-    with open(path, 'wb') as f:
-        f.write(img_bytes)
-    # public url served via /files route; prefer absolute PUBLIC_BASE_URL if provided
-    public_base = os.getenv('PUBLIC_BASE_URL')
-    if public_base:
-        url = f"{public_base.rstrip('/')}/files/{name}"
-    else:
-        url = f"/files/{name}"
-    logger.info(f'Saved locally: {path}')
-    return url, path
+    # local (default)
+    return _store_local()

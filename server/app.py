@@ -153,7 +153,11 @@ def create_app() -> Flask:
             img_bytes, width, height = render_poster_from_gpx(gpx_text, out_w=w, out_h=h)
             logger.info(f"/api/generate: render complete, image_bytes={len(img_bytes)} size={width}x{height}")
             filename = f"{uuid.uuid4()}.png"
-            file_url, key = store_image(img_bytes, filename_hint=filename)
+            try:
+                file_url, key = store_image(img_bytes, filename_hint=filename)
+            except Exception as se:
+                logger.exception('/api/generate: store failed')
+                return jsonify(error='storage_failed', detail=str(se)), 500
             logger.info(f"/api/generate: stored image url={file_url} key={key}")
             return jsonify(ok=True, id=key, preview_url=file_url, width=width, height=height)
         except Exception as e:
