@@ -202,11 +202,11 @@ const getActivityColor = (type: string) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen bg-gray-50 overflow-hidden">
       {/* Main content */}
-      <div className="flex min-h-screen">
+      <div className="flex h-full">
         {/* Left side - Poster Preview */}
-        <div ref={previewContainerRef} className="flex-1 bg-white border-r border-gray-200 flex items-center justify-center p-8">
+        <div ref={previewContainerRef} className="flex-1 h-full bg-white border-r border-gray-200 flex items-center justify-center p-8 overflow-hidden">
           <div className="relative">
             <div 
               className="relative bg-white border-2 border-gray-300 shadow-xl p-6 flex flex-col"
@@ -230,7 +230,7 @@ const getActivityColor = (type: string) => {
         </div>
 
         {/* Right side - Activities List */}
-        <div className="w-[480px] bg-white overflow-y-auto">
+        <div className="w-[480px] bg-white h-full overflow-y-auto">
           <div className="p-6 space-y-6">
             <div className="space-y-4">
               <h1>Your strava routes</h1>
