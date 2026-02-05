@@ -466,7 +466,21 @@ def create_app() -> Flask:
 
 
 def _public_base_url() -> str | None:
-    return os.getenv('PUBLIC_BASE_URL')
+    """Return the public base URL used to build absolute redirects/links.
+
+    Prefers PUBLIC_BASE_URL from the environment. If not set (common in local
+    development), fall back to deriving it from the incoming request.
+    """
+    env_val = os.getenv('PUBLIC_BASE_URL')
+    if env_val and env_val.strip() != '':
+        return env_val.rstrip('/')
+    try:
+        # Lazy import to avoid circulars at module import time
+        from flask import request  # type: ignore
+        # request.url_root already includes scheme://host[:port]/
+        return (request.url_root or '').rstrip('/') or None
+    except Exception:
+        return None
 
 
 def _highres_w() -> int:

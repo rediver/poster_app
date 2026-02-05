@@ -9,6 +9,7 @@ import { Switch } from './ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Separator } from './ui/separator';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
+import { mapThemes } from '../src/mapThemes';
 
 interface PosterConfig {
   title: string;
@@ -50,6 +51,14 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
     { bg: '#fef7ed', text: '#9a3412', accent: '#ea580c' },
     { bg: '#ecfdf5', text: '#065f46', accent: '#10b981' },
   ];
+
+  // Presety kolorów oparte na stylach z maptoposter
+  const mapColorPresets = mapThemes.map((t) => ({
+    name: t.name,
+    bg: t.bg,
+    text: t.text,
+    accent: t.road_primary || t.road_default || t.text,
+  }));
 
   return (
     <div className="w-full space-y-6 p-6">
@@ -207,6 +216,30 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
                       style={{ backgroundColor: preset.accent }}
                     />
                   </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label>Map styles (z maptoposter)</Label>
+              <div className="grid grid-cols-5 gap-2">
+                {mapColorPresets.map((preset) => (
+                  <div key={preset.name} className="flex flex-col items-center gap-1">
+                    <button
+                      className="w-8 h-8 rounded border-2 border-gray-200 hover:border-gray-400 transition-colors"
+                      style={{ backgroundColor: preset.bg }}
+                      onClick={() => updateConfig({
+                        backgroundColor: preset.bg,
+                        textColor: preset.text,
+                        accentColor: preset.accent,
+                      })}
+                      aria-label={`Map style ${preset.name}`}
+                      title={preset.name}
+                    >
+                      <div className="w-full h-2" style={{ backgroundColor: preset.accent }} />
+                    </button>
+                    <span className="text-[10px] text-muted-foreground text-center leading-tight">{preset.name}</span>
+                  </div>
                 ))}
               </div>
             </div>
