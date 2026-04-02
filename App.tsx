@@ -4,6 +4,7 @@ import { StravaActivitiesScreen } from './components/StravaActivitiesScreen';
 import { PosterEditor } from './components/PosterEditor';
 import { SummaryScreen } from './components/SummaryScreen';
 import { encodePolyline } from './components/RoutePreview';
+import { MapImage } from './components/MapImage';
 import { logModule, useLogMount, logInfo, DEBUG_LOAD } from './src/debug';
 logModule('App.tsx module');
 
@@ -52,7 +53,7 @@ const [currentScreen, setCurrentScreen] = useState<AppScreen>('import');
       if (ro) ro.disconnect();
       else window.removeEventListener('resize', update);
     };
-  }, []);
+  }, [currentScreen]);
   // Detect auth callback from backend
   React.useEffect(() => {
     const hash = window.location.hash || '';
@@ -73,7 +74,7 @@ const [currentScreen, setCurrentScreen] = useState<AppScreen>('import');
     textColor: '#000000',
     accentColor: '#ff6b35',
     layout: 'map',
-    showAlphabet: true,
+    showAlphabet: false,
     format: 'A4',
     orientation: 'vertical',
   });
@@ -277,7 +278,7 @@ const handleGpxImported = (points: LatLng[]) => {
         <div ref={previewContainerRef} className="flex-1 h-full bg-white border-r border-gray-200 flex items-center justify-center p-8 overflow-hidden">
           <div className="relative">
             <div 
-              className="relative border-2 border-gray-300 shadow-xl"
+              className="relative border-2 border-gray-300 shadow-xl overflow-hidden"
               style={{ 
                 backgroundColor: config.layout === 'map' ? '#ffffff' : config.backgroundColor,
                 width: `${previewWidth}px`,
@@ -286,30 +287,12 @@ const handleGpxImported = (points: LatLng[]) => {
 >
               {/* Map + route rendered by Mapbox as single image (same as activities screen) */}
               {editorMapUrl && (
-                <img
+                <MapImage
                   src={editorMapUrl}
-                  alt="map"
                   className="absolute inset-0 w-full h-full object-cover z-0"
                 />
               )}
               <div className={`relative z-20 h-full p-6 flex flex-col ${getLayoutClasses()}`}>
-                {config.showAlphabet && (
-                  <div className="mb-4">
-                    <pre 
-                      className="whitespace-pre-wrap"
-                      style={{ 
-                        color: config.textColor,
-                        fontFamily: config.fontFamily,
-                        fontSize: `${fontSizes.alphabet}px`,
-                        lineHeight: '1.1',
-                        fontWeight: '600'
-                      }}
-                    >
-                      {alphabetText}
-                    </pre>
-                  </div>
-                )}
-                
                 <div className="flex-1 flex flex-col justify-end">
                   <h1 
                     className="mb-2"

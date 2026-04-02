@@ -8,6 +8,7 @@ import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
 import { MapPin, Clock, Calendar } from 'lucide-react';
 import { RoutePreview } from './RoutePreview';
+import { MapImage } from './MapImage';
 
 interface ActivityApi {
   id: number;
@@ -241,9 +242,8 @@ const getActivityColor = (type: string) => {
             >
               {/* Map + route rendered by Mapbox as single image */}
               {mapWithRouteUrl ? (
-                <img
+                <MapImage
                   src={mapWithRouteUrl}
-                  alt=""
                   className="absolute inset-0 w-full h-full object-cover"
                   style={{ zIndex: 0 }}
                 />

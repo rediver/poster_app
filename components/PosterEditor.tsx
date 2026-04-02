@@ -95,14 +95,6 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
             />
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="alphabet"
-              checked={config.showAlphabet}
-              onCheckedChange={(checked) => updateConfig({ showAlphabet: checked })}
-            />
-            <Label htmlFor="alphabet">Show alphabet</Label>
-          </div>
         </CardContent>
       </Card>
 
