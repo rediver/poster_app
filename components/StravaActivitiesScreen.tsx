@@ -184,6 +184,23 @@ export function StravaActivitiesScreen({ onActivitySelected, posterConfig }: Str
   );
   const selectedPolyline = selectedActivityData?.polyline || '';
 
+  // Build Mapbox static map URL with route drawn by Mapbox (path overlay)
+  const mapboxToken = (import.meta as any).env?.VITE_MAPBOX_ACCESS_TOKEN || '';
+  const mapWithRouteUrl = useMemo(() => {
+    if (!selectedPolyline || !mapboxToken) return '';
+    const w = Math.min(1280, Math.round(previewWidth));
+    const h = Math.min(1280, Math.round(previewHeight));
+    // Mapbox path overlay: path-{strokeWidth}+{color}({encoded_polyline})
+    const color = posterConfig.accentColor.replace('#', '');
+    const encodedPoly = encodeURIComponent(selectedPolyline);
+    // "auto" lets Mapbox find the best center+zoom to fit the path
+    return (
+      `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/` +
+      `path-3+${color}(${encodedPoly})/auto/${w}x${h}@2x` +
+      `?access_token=${mapboxToken}&logo=false&attribution=false&padding=40`
+    );
+  }, [selectedPolyline, mapboxToken, previewWidth, previewHeight, posterConfig.accentColor]);
+
 const getActivityColor = (type: string) => {
     switch (type) {
       case 'Run':
@@ -219,31 +236,46 @@ const getActivityColor = (type: string) => {
         <div ref={previewContainerRef} className="flex-1 h-full bg-white border-r border-gray-200 flex items-center justify-center p-8 overflow-hidden">
           <div className="relative">
             <div 
-              className="relative bg-white border-2 border-gray-300 shadow-xl p-6 flex flex-col"
+              className="relative bg-white border-2 border-gray-300 shadow-xl p-6 flex flex-col overflow-hidden"
               style={{ width: `${previewWidth}px`, height: `${previewHeight}px`, backgroundColor: posterConfig.backgroundColor }}
             >
-              {/* Route preview or placeholder */}
-              <div className="flex-1 flex items-center justify-center">
-                {selectedPolyline ? (
-                  <RoutePreview
-                    polyline={selectedPolyline}
-                    width={previewWidth - 48}
-                    height={previewHeight - 120}
-                    strokeColor={posterConfig.accentColor}
-                    strokeWidth={2}
-                  />
-                ) : (
+              {/* Map + route rendered by Mapbox as single image */}
+              {mapWithRouteUrl ? (
+                <img
+                  src={mapWithRouteUrl}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover"
+                  style={{ zIndex: 0 }}
+                />
+              ) : (
+                <div className="flex-1 flex items-center justify-center" style={{ position: 'relative', zIndex: 1 }}>
                   <p className="text-sm text-center" style={{ color: posterConfig.textColor, opacity: 0.3 }}>
                     Select an activity to preview the route
                   </p>
-                )}
-              </div>
+                </div>
+              )}
+              {/* Spacer to push text to bottom */}
+              {mapWithRouteUrl && <div className="flex-1" />}
               
-              <div className="flex flex-col">
-                <h1 className="mb-1" style={{ color: posterConfig.accentColor, fontFamily: posterConfig.fontFamily, fontSize: `${Math.round(20 * (posterConfig.format === 'A3' ? 1.3 : 1))}px`, fontWeight: 700, lineHeight: '1.1' }}>
+              <div className="flex flex-col" style={{ position: 'relative', zIndex: 1 }}>
+                <h1 className="mb-1" style={{
+                  color: posterConfig.accentColor,
+                  fontFamily: posterConfig.fontFamily,
+                  fontSize: `${Math.round(22 * (posterConfig.format === 'A3' ? 1.3 : 1))}px`,
+                  fontWeight: 800,
+                  lineHeight: '1.1',
+                  textShadow: '0 1px 4px rgba(0,0,0,0.7)',
+                }}>
                   {selectedActivityData?.name || 'Your Activity'}
                 </h1>
-                <p style={{ color: posterConfig.textColor, fontFamily: posterConfig.fontFamily, fontSize: `${Math.round(10 * (posterConfig.format === 'A3' ? 1.0 : 0.9))}px`, lineHeight: '1.3', opacity: 0.6 }}>
+                <p style={{
+                  color: posterConfig.accentColor,
+                  fontFamily: posterConfig.fontFamily,
+                  fontSize: `${Math.round(11 * (posterConfig.format === 'A3' ? 1.0 : 0.9))}px`,
+                  fontWeight: 600,
+                  lineHeight: '1.3',
+                  textShadow: '0 1px 3px rgba(0,0,0,0.7)',
+                }}>
                   {selectedActivityData ? `${selectedActivityData.distance} · ${selectedActivityData.duration}` : ''}
                 </p>
               </div>
