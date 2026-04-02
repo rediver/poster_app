@@ -61,7 +61,8 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
   }));
 
   return (
-    <div className="w-full space-y-6 p-6">
+    <div className="w-full h-full flex flex-col">
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
       <div className="space-y-4">
         <h2>Transform your memories into beautiful poster</h2>
         <p className="text-muted-foreground">
@@ -282,12 +283,16 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
         </CardContent>
       </Card>
 
-      <Button 
-        onClick={onSummary}
-        className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-      >
-        Summary
-      </Button>
+      </div>
+
+      <div className="p-6 pt-4 border-t border-gray-200">
+        <Button 
+          onClick={onSummary}
+          className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+        >
+          Summary
+        </Button>
+      </div>
     </div>
   );
 }

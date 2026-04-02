@@ -284,15 +284,14 @@ const getActivityColor = (type: string) => {
         </div>
 
         {/* Right side - Activities List */}
-        <div className="w-[480px] bg-white h-full overflow-y-auto">
-          <div className="p-6 space-y-6">
-            <div className="space-y-4">
+        <div className="w-[480px] bg-white h-full flex flex-col">
+          <div className="flex-1 overflow-y-auto px-6 pt-6 pb-4">
+            <div className="space-y-4 mb-6">
               <h1>Your strava routes</h1>
               <p className="text-muted-foreground">
                 Select an activity to create your poster
               </p>
             </div>
-
             {loading && <div className="text-sm text-muted-foreground">Loading activities...</div>}
             {error && !loading && <div className="text-sm text-red-500">{error}</div>}
 
@@ -350,7 +349,9 @@ const getActivityColor = (type: string) => {
               </div>
               </RadioGroup>
             )}
+          </div>
 
+          <div className="p-6 pt-4 border-t border-gray-200">
             <Button 
               onClick={handleContinue}
               disabled={!selectedActivity}

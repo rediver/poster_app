@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { DataImportScreen } from './components/DataImportScreen';
 import { StravaActivitiesScreen } from './components/StravaActivitiesScreen';
 import { PosterEditor } from './components/PosterEditor';
 import { SummaryScreen } from './components/SummaryScreen';
+import { encodePolyline } from './components/RoutePreview';
 import { logModule, useLogMount, logInfo, DEBUG_LOAD } from './src/debug';
 logModule('App.tsx module');
 
@@ -199,14 +200,39 @@ const handleGpxImported = (points: LatLng[]) => {
 
   const alphabetText = "ABCD\nEFGHIJK\nLMNOP\nQRSTUV\nWXYZ";
 
-  // Simple zoom factor for map layout (1 = bbox w/ 5% padding). Higher => more zoomed-in (less padding)
-  const [mapZoom, setMapZoom] = useState<number>((config as any).mapZoom ?? 1.5);
+  // Build Mapbox static URL with route drawn via path overlay (same as StravaActivitiesScreen)
+  const mapboxToken = (import.meta as any).env?.VITE_MAPBOX_ACCESS_TOKEN || '';
 
-  // Sync mapZoom with config.mapZoom so slider in editor controls it
-  React.useEffect(() => {
-    const v = (config as any).mapZoom;
-    if (typeof v === 'number') setMapZoom(v);
-  }, [config]);
+  const editorMapUrl = useMemo(() => {
+    if (config.layout !== 'map' || trackPoints.length < 2 || !mapboxToken) return '';
+
+    // Downsample to keep URL under Mapbox's 8192-char limit
+    let pts = trackPoints;
+    const maxPts = 300;
+    if (pts.length > maxPts) {
+      const step = (pts.length - 1) / (maxPts - 1);
+      pts = Array.from({ length: maxPts }, (_, i) =>
+        trackPoints[Math.round(i * step)]
+      );
+      pts.push(trackPoints[trackPoints.length - 1]);
+    }
+
+    const color = config.accentColor.replace('#', '');
+    const encodedPoly = encodeURIComponent(encodePolyline(pts));
+    const w = Math.min(1280, Math.round(previewWidth));
+    const h = Math.min(1280, Math.round(previewHeight));
+
+    const isDark =
+      config.backgroundColor === '#000000' ||
+      config.backgroundColor.toLowerCase() === '#111111';
+    const styleId = isDark ? 'dark-v11' : 'light-v11';
+
+    return (
+      `https://api.mapbox.com/styles/v1/mapbox/${styleId}/static/` +
+      `path-3+${color}(${encodedPoly})/auto/${w}x${h}@2x` +
+      `?access_token=${mapboxToken}&logo=false&attribution=false&padding=40`
+    );
+  }, [config.layout, trackPoints, mapboxToken, previewWidth, previewHeight, config.accentColor, config.backgroundColor]);
 
   // Adjust font sizes for editor preview
   const getFontSizes = () => {
@@ -244,11 +270,11 @@ const handleGpxImported = (points: LatLng[]) => {
 
   // Show poster editor (default)
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen bg-gray-50 overflow-hidden">
       {/* Main content */}
-      <div className="flex min-h-screen">
-        {/* Left side - Large Poster Preview */}
-        <div ref={previewContainerRef} className="flex-1 bg-white border-r border-gray-200 flex items-center justify-center p-8">
+      <div className="flex h-full">
+        {/* Left side - Large Poster Preview (fixed) */}
+        <div ref={previewContainerRef} className="flex-1 h-full bg-white border-r border-gray-200 flex items-center justify-center p-8 overflow-hidden">
           <div className="relative">
             <div 
               className="relative border-2 border-gray-300 shadow-xl"
@@ -258,110 +284,13 @@ const handleGpxImported = (points: LatLng[]) => {
                 height: `${previewHeight}px`
               }}
 >
-              {/* Mapbox background for map layout; center map dynamically on route centroid */}
-              {config.layout === 'map' && trackPoints.length > 1 && (() => {
-                const lats = trackPoints.map(p => p[0]);
-                const lons = trackPoints.map(p => p[1]);
-                const minLat = Math.min(...lats);
-                const maxLat = Math.max(...lats);
-                const minLon = Math.min(...lons);
-                const maxLon = Math.max(...lons);
-                // Center of route
-                const centerLat = (minLat + maxLat) / 2;
-                const centerLon = (minLon + maxLon) / 2;
-                // Calculate proper padding based on the mapZoom slider
-                // mapZoom controls how much padding around the track (1.5 = default, 3 = tight, 0.5 = loose)
-                const paddingFactor = 0.15 / mapZoom; // More zoom = less padding
-                const latPad = (maxLat - minLat) * paddingFactor || 0.001;
-                const lonPad = (maxLon - minLon) * paddingFactor || 0.001;
-                const minLatP = minLat - latPad;
-                const maxLatP = maxLat + latPad;
-                const minLonP = minLon - lonPad;
-                const maxLonP = maxLon + lonPad;
-                
-                // Calculate zoom level that fits the padded bounds
-                // Mapbox zoom calculation: zoom = log2(360 / degrees_span) - adjustment
-                const dLat = (maxLatP - minLatP) || 0.01;
-                const dLon = (maxLonP - minLonP) || 0.01;
-                
-                // Account for Web Mercator projection distortion at this latitude
-                const avgLat = centerLat;
-                const latRadians = avgLat * Math.PI / 180;
-                const mercatorAdjustment = Math.cos(latRadians);
-                
-                // Calculate zoom for each dimension
-                // Subtract 1 to add margin for better framing
-                const latZoom = Math.log2(180 / dLat) - 1;
-                const lonZoom = Math.log2(360 / (dLon / mercatorAdjustment)) - 1;
-                
-                // Use the more restrictive zoom to ensure track fits
-                const aspect = previewWidth / previewHeight;
-                const bboxAspect = (dLon * mercatorAdjustment) / dLat;
-                
-                let zoom: number;
-                if (bboxAspect > aspect) {
-                  // Track is wider than canvas aspect - constrain by longitude
-                  zoom = lonZoom;
-                } else {
-                  // Track is taller than canvas aspect - constrain by latitude  
-                  zoom = latZoom;
-                }
-                
-                // Apply final adjustment based on mapZoom slider
-                zoom = zoom + (mapZoom - 1.5) * 0.5; // Slider affects zoom level
-                
-                // Clamp to reasonable Mapbox zoom range
-                zoom = Math.max(1, Math.min(18, zoom));
-
-                // Use a monochromatic style that matches the current color scheme
-                // Use light style for light backgrounds, dark style for dark backgrounds
-                const isDark = config.backgroundColor === '#000000' || config.backgroundColor.toLowerCase() === '#111111';
-                const styleId = isDark ? 'mapbox/dark-v11' : 'mapbox/light-v11';
-                const sizeW = Math.round(previewWidth);
-                const sizeH = Math.round(previewHeight);
-                const center = `${centerLon},${centerLat}`;
-                const url = `${BACKEND_URL}/api/mapbox/static?style=${encodeURIComponent(styleId)}&center=${encodeURIComponent(center)}&zoom=${encodeURIComponent(String(zoom))}&w=${sizeW}&h=${sizeH}`;
-                console.log('Editor map image URL', { url, sizeW, sizeH, zoom, styleId });
-                return (
-                  <img src={url} alt="map" className="absolute inset-0 w-full h-full object-fill z-0" onError={(e) => console.error('Editor map image failed', url, e)} />
-                );
-              })()}
-
-              {/* GPX track overlay */}
-              {trackPoints.length > 1 && (
-                <svg
-                  className="absolute inset-0 pointer-events-none z-10"
-                  width={previewWidth}
-                  height={previewHeight}
-                  viewBox={`0 0 ${previewWidth} ${previewHeight}`}
-                >
-                  {(() => {
-                    const lats = trackPoints.map(p => p[0]);
-                    const lons = trackPoints.map(p => p[1]);
-                    const minLat = Math.min(...lats);
-                    const maxLat = Math.max(...lats);
-                    const minLon = Math.min(...lons);
-                    const maxLon = Math.max(...lons);
-                    const padLat = (maxLat - minLat) * 0.05 || 0.001;
-                    const padLon = (maxLon - minLon) * 0.05 || 0.001;
-                    const minLatP = minLat - padLat;
-                    const maxLatP = maxLat + padLat;
-                    const minLonP = minLon - padLon;
-                    const maxLonP = maxLon + padLon;
-                    const toXY = (lat: number, lon: number) => {
-                      const x = (lon - minLonP) / (maxLonP - minLonP) * (previewWidth - 1);
-                      const y = (maxLatP - lat) / (maxLatP - minLatP) * (previewHeight - 1);
-                      return [x, y] as [number, number];
-                    };
-                    const d = trackPoints.map(([lat, lon], i) => {
-                      const [x, y] = toXY(lat, lon);
-                      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-                    }).join(' ');
-                    return (
-                      <path d={d} fill="none" stroke={config.accentColor} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-                    );
-                  })()}
-                </svg>
+              {/* Map + route rendered by Mapbox as single image (same as activities screen) */}
+              {editorMapUrl && (
+                <img
+                  src={editorMapUrl}
+                  alt="map"
+                  className="absolute inset-0 w-full h-full object-cover z-0"
+                />
               )}
               <div className={`relative z-20 h-full p-6 flex flex-col ${getLayoutClasses()}`}>
                 {config.showAlphabet && (
@@ -418,14 +347,11 @@ const handleGpxImported = (points: LatLng[]) => {
           </div>
         </div>
 
-        {/* Right side - Editor */}
-        <div className="w-[480px] bg-white overflow-y-auto">
+        {/* Right side - Editor (scrollable) */}
+        <div className="w-[480px] bg-white h-full overflow-y-auto">
           <PosterEditor
             config={config}
-            onConfigChange={(c) => {
-              setConfig(c);
-              if (typeof (c as any).mapZoom === 'number') setMapZoom((c as any).mapZoom);
-            }}
+            onConfigChange={setConfig}
             onSummary={handleSummary}
           />
         </div>

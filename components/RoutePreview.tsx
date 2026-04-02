@@ -4,6 +4,37 @@ import React from 'react';
  * Decode a Google Encoded Polyline string into an array of [lat, lng] pairs.
  * https://developers.google.com/maps/documentation/utilities/polylinealgorithm
  */
+/**
+ * Encode an array of [lat, lng] pairs into a Google Encoded Polyline string.
+ */
+export function encodePolyline(points: [number, number][]): string {
+  let encoded = '';
+  let prevLat = 0;
+  let prevLng = 0;
+
+  for (const [lat, lng] of points) {
+    const latRound = Math.round(lat * 1e5);
+    const lngRound = Math.round(lng * 1e5);
+    encoded += encodeSignedValue(latRound - prevLat);
+    encoded += encodeSignedValue(lngRound - prevLng);
+    prevLat = latRound;
+    prevLng = lngRound;
+  }
+
+  return encoded;
+}
+
+function encodeSignedValue(value: number): string {
+  let v = value < 0 ? ~(value << 1) : value << 1;
+  let result = '';
+  while (v >= 0x20) {
+    result += String.fromCharCode((0x20 | (v & 0x1f)) + 63);
+    v >>= 5;
+  }
+  result += String.fromCharCode(v + 63);
+  return result;
+}
+
 export function decodePolyline(encoded: string): [number, number][] {
   const points: [number, number][] = [];
   let index = 0;
