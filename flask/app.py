@@ -41,7 +41,11 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 CORS(
     app,
     supports_credentials=True,
-    resources={r"/api/*": {"origins": [FRONTEND_URL]}},
+    resources={
+        r"/api/*": {"origins": [FRONTEND_URL], "allow_headers": ["Authorization", "Content-Type"]},
+        r"/healthz": {"origins": [FRONTEND_URL]},
+        r"/strava/*": {"origins": [FRONTEND_URL], "allow_headers": ["Authorization", "Content-Type"]},
+    },
 )
 
 # Configure loguru logger to use JSON format
@@ -75,6 +79,10 @@ if DATABASE_URL:
         logger.error(f"Failed to connect/init DB: {e}")
 else:
     logger.warning("DATABASE_URL not set; admin features disabled")
+
+@app.route('/healthz')
+def healthz():
+    return jsonify(ok=True)
 
 @app.route('/', methods=['GET'])
 def root():
@@ -808,4 +816,4 @@ def health():
     return jsonify(status="ok")
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5050)

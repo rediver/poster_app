@@ -26,7 +26,11 @@ def create_app() -> Flask:
         from flask_cors import CORS  # type: ignore
         frontend_origin = os.getenv('FRONTEND_ORIGIN') or os.getenv('FRONTEND_URL')
         if frontend_origin:
-            CORS(app, supports_credentials=True, resources={r"/api/*": {"origins": [frontend_origin], "allow_headers": ["Authorization", "Content-Type"]}})
+            CORS(app, supports_credentials=True, resources={
+                r"/api/*": {"origins": [frontend_origin], "allow_headers": ["Authorization", "Content-Type"]},
+                r"/healthz": {"origins": [frontend_origin]},
+                r"/strava/*": {"origins": [frontend_origin], "allow_headers": ["Authorization", "Content-Type"]},
+            })
     except Exception:
         # If flask-cors is not installed locally, continue without CORS (Render installs it via requirements)
         pass

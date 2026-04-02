@@ -7,6 +7,7 @@ import { Badge } from './ui/badge';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
 import { MapPin, Clock, Calendar } from 'lucide-react';
+import { RoutePreview } from './RoutePreview';
 
 interface ActivityApi {
   id: number;
@@ -17,6 +18,7 @@ interface ActivityApi {
   elapsed_time?: number; // seconds
   start_date: string; // ISO
   total_elevation_gain?: number; // meters
+  map?: { summary_polyline?: string };
 }
 
 interface ActivityItem {
@@ -27,6 +29,7 @@ interface ActivityItem {
   duration: string;
   date: string;
   elevation: string;
+  polyline?: string;
 }
 
 interface StravaSelection {
@@ -160,6 +163,7 @@ export function StravaActivitiesScreen({ onActivitySelected, posterConfig }: Str
           duration: fmtTime(a.moving_time || a.elapsed_time),
           date: new Date(a.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
           elevation: `${Math.round(a.total_elevation_gain || 0)} m`,
+          polyline: a.map?.summary_polyline || undefined,
         }));
         setActivities(items);
         if (DEBUG_LOAD) logInfo('Activities loaded', { count: items.length });
@@ -173,6 +177,12 @@ export function StravaActivitiesScreen({ onActivitySelected, posterConfig }: Str
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+
+  const selectedActivityData = useMemo(
+    () => activities.find((a) => a.id === selectedActivity),
+    [activities, selectedActivity]
+  );
+  const selectedPolyline = selectedActivityData?.polyline || '';
 
 const getActivityColor = (type: string) => {
     switch (type) {
@@ -212,17 +222,29 @@ const getActivityColor = (type: string) => {
               className="relative bg-white border-2 border-gray-300 shadow-xl p-6 flex flex-col"
               style={{ width: `${previewWidth}px`, height: `${previewHeight}px`, backgroundColor: posterConfig.backgroundColor }}
             >
-              <div className="mb-4">
-                <pre className="whitespace-pre-wrap"
-                     style={{ color: posterConfig.textColor, fontFamily: posterConfig.fontFamily, fontSize: `${Math.round(18 * (posterConfig.format === 'A3' ? 1.3 : 1))}px`, lineHeight: '1.1', fontWeight: 600 }}>
-                  ABCD{'\n'}EFGHIJK{'\n'}LMNOP{'\n'}QRSTUV{'\n'}WXYZ
-                </pre>
+              {/* Route preview or placeholder */}
+              <div className="flex-1 flex items-center justify-center">
+                {selectedPolyline ? (
+                  <RoutePreview
+                    polyline={selectedPolyline}
+                    width={previewWidth - 48}
+                    height={previewHeight - 120}
+                    strokeColor={posterConfig.accentColor}
+                    strokeWidth={2}
+                  />
+                ) : (
+                  <p className="text-sm text-center" style={{ color: posterConfig.textColor, opacity: 0.3 }}>
+                    Select an activity to preview the route
+                  </p>
+                )}
               </div>
               
-              <div className="flex-1 flex flex-col justify-end">
-                <h1 className="mb-2" style={{ color: posterConfig.accentColor, fontFamily: posterConfig.fontFamily, fontSize: `${Math.round(28 * (posterConfig.format === 'A3' ? 1.3 : 1))}px`, fontWeight: 700, lineHeight: '1.1' }}>Helvetica</h1>
-                <p style={{ color: posterConfig.textColor, fontFamily: posterConfig.fontFamily, fontSize: `${Math.round(12 * (posterConfig.format === 'A3' ? 1.0 : 0.9))}px`, lineHeight: '1.3' }}>
-                  A neo-grotesque or realist design, one of the most popular typefaces in the world
+              <div className="flex flex-col">
+                <h1 className="mb-1" style={{ color: posterConfig.accentColor, fontFamily: posterConfig.fontFamily, fontSize: `${Math.round(20 * (posterConfig.format === 'A3' ? 1.3 : 1))}px`, fontWeight: 700, lineHeight: '1.1' }}>
+                  {selectedActivityData?.name || 'Your Activity'}
+                </h1>
+                <p style={{ color: posterConfig.textColor, fontFamily: posterConfig.fontFamily, fontSize: `${Math.round(10 * (posterConfig.format === 'A3' ? 1.0 : 0.9))}px`, lineHeight: '1.3', opacity: 0.6 }}>
+                  {selectedActivityData ? `${selectedActivityData.distance} · ${selectedActivityData.duration}` : ''}
                 </p>
               </div>
             </div>
