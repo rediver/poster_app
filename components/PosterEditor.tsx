@@ -72,10 +72,7 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
     <div className="w-full h-full flex flex-col">
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
       <div className="space-y-4">
-        <h2>Transform your memories into beautiful poster</h2>
-        <p className="text-muted-foreground">
-          Upload your strava routes and create a beautiful poster just for you
-        </p>
+<h2 className="text-2xl font-semibold tracking-tight leading-tight">Transform your memories into beautiful poster</h2>
       </div>
 
       <Card>

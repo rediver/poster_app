@@ -132,10 +132,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         <div className="w-[480px] bg-white flex flex-col justify-center p-8">
           <div className="max-w-md mx-auto w-full space-y-8">
             <div className="space-y-4">
-              <h1>Transform your memories into beautiful poster</h1>
-              <p className="text-muted-foreground">
-                Upload your strava routes and create a beautiful poster just for you
-              </p>
+<h1 className="text-3xl font-semibold tracking-tight leading-tight">Transform your memories into beautiful poster</h1>
             </div>
 
             <div className="space-y-4">
