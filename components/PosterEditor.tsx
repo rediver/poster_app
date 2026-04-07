@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Separator } from './ui/separator';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 import { mapThemes } from '../src/mapThemes';
+import { Map, Image, Minus } from 'lucide-react';
 
 interface PosterConfig {
   title: string;
@@ -17,7 +18,7 @@ interface PosterConfig {
   backgroundColor: string;
   textColor: string;
   accentColor: string;
-  layout: 'map' | 'modern' | 'minimal';
+  layout: 'map' | 'photo' | 'minimal';
   showAlphabet: boolean;
   format: 'A3' | 'A4';
   orientation: 'vertical' | 'horizontal';
@@ -76,6 +77,38 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
           Upload your strava routes and create a beautiful poster just for you
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Layout</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { value: 'map' as const, icon: Map, label: 'Map' },
+              { value: 'photo' as const, icon: Image, label: 'Photo' },
+              { value: 'minimal' as const, icon: Minus, label: 'Minimal' },
+            ].map(({ value, icon: Icon, label }) => (
+              <button
+                key={value}
+                onClick={() => {
+                  const updates: Partial<PosterConfig> = { layout: value };
+                  if (value === 'minimal') updates.orientation = 'horizontal';
+                  updateConfig(updates);
+                }}
+                className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors ${
+                  config.layout === value
+                    ? 'border-orange-500 bg-orange-50'
+                    : 'border-gray-200 hover:border-gray-400'
+                }`}
+              >
+                <Icon className="h-6 w-6" />
+                <span className="text-sm font-medium">{label}</span>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -192,49 +225,24 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
 
           <Separator />
 
-          {/* Typography and Layout */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Font Family</Label>
-                <Select
-                  value={config.fontFamily}
-                  onValueChange={(value) => updateConfig({ fontFamily: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {fontOptions.map((font) => (
-                      <SelectItem key={font.value} value={font.value}>
-                        {font.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Layout</Label>
-                <Select
-                  value={config.layout}
-                  onValueChange={(value: 'map' | 'modern' | 'minimal') => {
-                    const updates: Partial<PosterConfig> = { layout: value };
-                    if (value === 'minimal') updates.orientation = 'horizontal';
-                    updateConfig(updates);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="map">Map</SelectItem>
-                    <SelectItem value="modern">Modern</SelectItem>
-                    <SelectItem value="minimal">Minimal</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+          {/* Typography */}
+          <div className="space-y-2">
+            <Label>Font Family</Label>
+            <Select
+              value={config.fontFamily}
+              onValueChange={(value) => updateConfig({ fontFamily: value })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {fontOptions.map((font) => (
+                  <SelectItem key={font.value} value={font.value}>
+                    {font.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <Separator />

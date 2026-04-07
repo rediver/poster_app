@@ -18,7 +18,7 @@ interface PosterConfig {
   backgroundColor: string;
   textColor: string;
   accentColor: string;
-  layout: 'map' | 'modern' | 'minimal';
+  layout: 'map' | 'photo' | 'minimal';
   showAlphabet: boolean;
   format: 'A3' | 'A4';
   orientation: 'vertical' | 'horizontal';
@@ -165,7 +165,7 @@ const handleGpxImported = (points: LatLng[]) => {
   // Layout classes for poster preview
   const getLayoutClasses = () => {
     switch (config.layout) {
-      case 'modern':
+      case 'photo':
         return 'justify-between';
       case 'minimal':
         return 'justify-center items-center';
