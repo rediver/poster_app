@@ -3,8 +3,10 @@ import { DataImportScreen } from './components/DataImportScreen';
 import { StravaActivitiesScreen } from './components/StravaActivitiesScreen';
 import { PosterEditor } from './components/PosterEditor';
 import { SummaryScreen } from './components/SummaryScreen';
-import { encodePolyline } from './components/RoutePreview';
+import { encodePolyline, smoothPoints, downsamplePoints } from './components/RoutePreview';
 import { MapImage } from './components/MapImage';
+import { DataOverlay, OverlayData } from './components/DataOverlay';
+import { TrackSvg } from './components/TrackSvg';
 import { logModule, useLogMount, logInfo, DEBUG_LOAD } from './src/debug';
 logModule('App.tsx module');
 
@@ -12,7 +14,6 @@ type LatLng = [number, number];
 
 interface PosterConfig {
   title: string;
-  subtitle: string;
   fontFamily: string;
   backgroundColor: string;
   textColor: string;
@@ -22,6 +23,8 @@ interface PosterConfig {
   format: 'A3' | 'A4';
   orientation: 'vertical' | 'horizontal';
   mapZoom?: number;
+  showDataOverlay: boolean;
+  overlayData: OverlayData;
 }
 
 type AppScreen = 'import' | 'strava-activities' | 'editor' | 'summary';
@@ -68,15 +71,16 @@ const [currentScreen, setCurrentScreen] = useState<AppScreen>('import');
   }, []);
   const [config, setConfig] = useState<PosterConfig>({
     title: 'Helvetica',
-    subtitle: 'A neo-grotesque or realist design, one of the most popular typefaces in the world',
     fontFamily: 'Helvetica, Arial, sans-serif',
     backgroundColor: '#ffffff',
     textColor: '#000000',
     accentColor: '#ff6b35',
     layout: 'map',
     showAlphabet: false,
-    format: 'A4',
+    format: 'A3',
     orientation: 'vertical',
+    showDataOverlay: true,
+    overlayData: {},
   });
 
   const handleStravaSelected = () => {
@@ -89,20 +93,18 @@ const handleGpxImported = (points: LatLng[]) => {
     setConfig((prev) => ({
       ...prev,
       title: '',
-      subtitle: '',
     }));
     setCurrentScreen('editor');
   };
 
   const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || '';
 
-  type ActivitySelection = { titleSuggestion?: string; subtitleSuggestion?: string; activityId?: string | number };
+  type ActivitySelection = { titleSuggestion?: string; activityId?: string | number; overlayData?: OverlayData };
   const handleActivitySelected = async (selection: ActivitySelection) => {
-    // Prefill title/subtitle
     setConfig((prev) => ({
       ...prev,
       title: (selection && selection.titleSuggestion) || '',
-      subtitle: (selection && selection.subtitleSuggestion) || '',
+      overlayData: (selection && selection.overlayData) || {},
     }));
 
     // Try to fetch GPX for the activity, parse to trackPoints
@@ -199,6 +201,11 @@ const handleGpxImported = (points: LatLng[]) => {
   const previewWidth = dimensions.width * dimensions.scale;
   const previewHeight = dimensions.height * dimensions.scale;
 
+  // Overlay dimensions
+  const overlayFraction = config.showDataOverlay ? 0.22 : 0;
+  const overlayHeight = Math.round(previewHeight * overlayFraction);
+  const mapSectionHeight = Math.round(previewHeight - overlayHeight);
+
   const alphabetText = "ABCD\nEFGHIJK\nLMNOP\nQRSTUV\nWXYZ";
 
   // Build Mapbox static URL with route drawn via path overlay (same as StravaActivitiesScreen)
@@ -207,21 +214,15 @@ const handleGpxImported = (points: LatLng[]) => {
   const editorMapUrl = useMemo(() => {
     if (config.layout !== 'map' || trackPoints.length < 2 || !mapboxToken) return '';
 
-    // Downsample to keep URL under Mapbox's 8192-char limit
-    let pts = trackPoints;
-    const maxPts = 300;
-    if (pts.length > maxPts) {
-      const step = (pts.length - 1) / (maxPts - 1);
-      pts = Array.from({ length: maxPts }, (_, i) =>
-        trackPoints[Math.round(i * step)]
-      );
-      pts.push(trackPoints[trackPoints.length - 1]);
-    }
+    // Downsample → smooth → re-downsample to keep URL under Mapbox limit
+    let pts = downsamplePoints(trackPoints, 200);
+    pts = smoothPoints(pts, 2);
+    pts = downsamplePoints(pts, 350);
 
     const color = config.accentColor.replace('#', '');
     const encodedPoly = encodeURIComponent(encodePolyline(pts));
     const w = Math.min(1280, Math.round(previewWidth));
-    const h = Math.min(1280, Math.round(previewHeight));
+    const h = Math.min(1280, Math.round(mapSectionHeight));
 
     const isDark =
       config.backgroundColor === '#000000' ||
@@ -233,17 +234,25 @@ const handleGpxImported = (points: LatLng[]) => {
       `path-3+${color}(${encodedPoly})/auto/${w}x${h}@2x` +
       `?access_token=${mapboxToken}&logo=false&attribution=false&padding=40`
     );
-  }, [config.layout, trackPoints, mapboxToken, previewWidth, previewHeight, config.accentColor, config.backgroundColor]);
+  }, [config.layout, trackPoints, mapboxToken, previewWidth, mapSectionHeight, config.accentColor, config.backgroundColor, config.showDataOverlay]);
 
-  // Adjust font sizes for editor preview
+  // Smoothed track for minimal layout (no map, SVG only)
+  const smoothedTrack = useMemo(() => {
+    if (trackPoints.length < 2) return [];
+    let pts = downsamplePoints(trackPoints, 200);
+    pts = smoothPoints(pts, 2);
+    return pts;
+  }, [trackPoints]);
+
+  const trackAreaHeight = config.showDataOverlay ? mapSectionHeight : previewHeight;
+
+  // Adjust font sizes
   const getFontSizes = () => {
-    const baseMultiplier = config.format === 'A3' ? 1.4 : 1.2;
+    const baseMultiplier = 1.4;
     const orientationMultiplier = config.orientation === 'horizontal' ? 0.85 : 1;
     
     return {
-      alphabet: Math.round(18 * baseMultiplier * orientationMultiplier),
       title: Math.round(28 * baseMultiplier * orientationMultiplier),
-      subtitle: Math.round(12 * baseMultiplier * orientationMultiplier)
     };
   };
 
@@ -282,45 +291,67 @@ const handleGpxImported = (points: LatLng[]) => {
               style={{ 
                 backgroundColor: config.layout === 'map' ? '#ffffff' : config.backgroundColor,
                 width: `${previewWidth}px`,
-                height: `${previewHeight}px`
+                height: `${previewHeight}px`,
+                display: 'flex',
+                flexDirection: 'column',
               }}
->
-              {/* Map + route rendered by Mapbox as single image (same as activities screen) */}
-              {editorMapUrl && (
-                <MapImage
-                  src={editorMapUrl}
-                  className="absolute inset-0 w-full h-full object-cover z-0"
+            >
+              {/* Map section */}
+              <div style={{
+                position: 'relative',
+                width: '100%',
+                height: config.showDataOverlay ? `${mapSectionHeight}px` : '100%',
+                overflow: 'hidden',
+              }}>
+                {editorMapUrl && (
+                  <MapImage
+                    src={editorMapUrl}
+                    className="absolute inset-0 w-full h-full object-cover z-0"
+                  />
+                )}
+                {config.layout === 'minimal' && smoothedTrack.length >= 2 && (
+                  <div className="absolute inset-0 z-0 flex items-center justify-center">
+                    <TrackSvg
+                      points={smoothedTrack}
+                      width={previewWidth}
+                      height={trackAreaHeight}
+                      strokeColor={config.accentColor}
+                      strokeWidth={Math.max(2, Math.round(previewWidth / 150))}
+                    />
+                  </div>
+                )}
+                {!config.showDataOverlay && (
+                  <div className={`relative z-20 h-full p-6 flex flex-col ${getLayoutClasses()}`}>
+                    <div className="flex-1 flex flex-col justify-end">
+                      <h1 
+                        className="mb-2"
+                        style={{ 
+                          color: config.accentColor,
+                          fontFamily: config.fontFamily,
+                          fontSize: `${fontSizes.title}px`,
+                          fontWeight: '700',
+                          lineHeight: '1.1'
+                        }}
+                      >
+                        {config.title}
+                      </h1>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Data overlay */}
+              {config.showDataOverlay && (
+                <DataOverlay
+                  title={config.title}
+                  data={config.overlayData}
+                  backgroundColor={config.backgroundColor}
+                  textColor={config.textColor}
+                  fontFamily={config.fontFamily}
+                  width={previewWidth}
+                  height={overlayHeight}
                 />
               )}
-              <div className={`relative z-20 h-full p-6 flex flex-col ${getLayoutClasses()}`}>
-                <div className="flex-1 flex flex-col justify-end">
-                  <h1 
-                    className="mb-2"
-                    style={{ 
-                      color: config.accentColor,
-                      fontFamily: config.fontFamily,
-                      fontSize: `${fontSizes.title}px`,
-                      fontWeight: '700',
-                      lineHeight: '1.1'
-                    }}
-                  >
-                    {config.title}
-                  </h1>
-                  
-                  {config.subtitle && (
-                    <p 
-                      style={{ 
-                        color: config.textColor,
-                        fontFamily: config.fontFamily,
-                        fontSize: `${fontSizes.subtitle}px`,
-                        lineHeight: '1.3'
-                      }}
-                    >
-                      {config.subtitle}
-                    </p>
-                  )}
-                </div>
-              </div>
             </div>
             
             {/* Format and orientation indicator */}

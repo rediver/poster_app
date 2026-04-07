@@ -2,7 +2,6 @@ import React from 'react';
 
 interface PosterConfig {
   title: string;
-  subtitle: string;
   fontFamily: string;
   backgroundColor: string;
   textColor: string;
@@ -62,7 +61,6 @@ export function PosterPreview({ config }: PosterPreviewProps) {
     return {
       alphabet: Math.round(18 * baseMultiplier * orientationMultiplier),
       title: Math.round(28 * baseMultiplier * orientationMultiplier),
-      subtitle: Math.round(12 * baseMultiplier * orientationMultiplier)
     };
   };
 
@@ -109,19 +107,6 @@ export function PosterPreview({ config }: PosterPreviewProps) {
             >
               {config.title}
             </h1>
-            
-            {config.subtitle && (
-              <p 
-                style={{ 
-                  color: config.textColor,
-                  fontFamily: config.fontFamily,
-                  fontSize: `${fontSizes.subtitle}px`,
-                  lineHeight: '1.3'
-                }}
-              >
-                {config.subtitle}
-              </p>
-            )}
           </div>
         </div>
         

@@ -7,6 +7,46 @@ import React from 'react';
 /**
  * Encode an array of [lat, lng] pairs into a Google Encoded Polyline string.
  */
+/**
+ * Chaikin's corner-cutting algorithm — smooths a polyline by replacing
+ * each segment with two points at 25% and 75%. Preserves start/end.
+ */
+export function smoothPoints(
+  points: [number, number][],
+  iterations = 2,
+): [number, number][] {
+  if (points.length < 3) return points;
+  let pts = points;
+  for (let iter = 0; iter < iterations; iter++) {
+    const next: [number, number][] = [pts[0]];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x1, y1] = pts[i];
+      const [x2, y2] = pts[i + 1];
+      next.push([x1 * 0.75 + x2 * 0.25, y1 * 0.75 + y2 * 0.25]);
+      next.push([x1 * 0.25 + x2 * 0.75, y1 * 0.25 + y2 * 0.75]);
+    }
+    next.push(pts[pts.length - 1]);
+    pts = next;
+  }
+  return pts;
+}
+
+/**
+ * Downsample an array of points to at most `max` entries (uniform).
+ */
+export function downsamplePoints(
+  points: [number, number][],
+  max: number,
+): [number, number][] {
+  if (points.length <= max) return points;
+  const step = (points.length - 1) / (max - 1);
+  const result: [number, number][] = Array.from({ length: max - 1 }, (_, i) =>
+    points[Math.round(i * step)],
+  );
+  result.push(points[points.length - 1]);
+  return result;
+}
+
 export function encodePolyline(points: [number, number][]): string {
   let encoded = '';
   let prevLat = 0;

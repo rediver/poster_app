@@ -3,12 +3,13 @@ import { logModule, useLogMount } from '../src/debug';
 logModule('components/SummaryScreen.tsx module');
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
-import { encodePolyline } from './RoutePreview';
+import { encodePolyline, smoothPoints, downsamplePoints } from './RoutePreview';
 import { MapImage } from './MapImage';
+import { DataOverlay } from './DataOverlay';
+import { TrackSvg } from './TrackSvg';
 
 interface PosterConfig {
   title: string;
-  subtitle: string;
   fontFamily: string;
   backgroundColor: string;
   textColor: string;
@@ -18,6 +19,14 @@ interface PosterConfig {
   format: 'A3' | 'A4';
   orientation: 'vertical' | 'horizontal';
   mapZoom?: number;
+  showDataOverlay: boolean;
+  overlayData: {
+    distance?: string;
+    duration?: string;
+    speed?: string;
+    elevation?: string;
+    date?: string;
+  };
 }
 
 type LatLng = [number, number];
@@ -137,17 +146,20 @@ export function SummaryScreen({ config, trackPoints, onBack }: SummaryScreenProp
   const previewWidth = dimensions.width * dimensions.scale;
   const previewHeight = dimensions.height * dimensions.scale;
 
+  // Overlay dimensions
+  const overlayFraction = config.showDataOverlay ? 0.22 : 0;
+  const overlayHeight = Math.round(previewHeight * overlayFraction);
+  const mapSectionHeight = Math.round(previewHeight - overlayHeight);
+
   const alphabetText = "ABCD\nEFGHIJK\nLMNOP\nQRSTUV\nWXYZ";
 
-  // Adjust font sizes for larger preview
+  // Adjust font sizes for larger preview (always A3 proportions)
   const getFontSizes = () => {
-    const baseMultiplier = config.format === 'A3' ? 1.6 : 1.4;
+    const baseMultiplier = 1.6;
     const orientationMultiplier = config.orientation === 'horizontal' ? 0.85 : 1;
     
     return {
-      alphabet: Math.round(18 * baseMultiplier * orientationMultiplier),
       title: Math.round(28 * baseMultiplier * orientationMultiplier),
-      subtitle: Math.round(12 * baseMultiplier * orientationMultiplier)
     };
   };
 
@@ -159,20 +171,15 @@ export function SummaryScreen({ config, trackPoints, onBack }: SummaryScreenProp
   const summaryMapUrl = useMemo(() => {
     if (config.layout !== 'map' || trackPoints.length < 2 || !mapboxToken) return '';
 
-    let pts = trackPoints;
-    const maxPts = 300;
-    if (pts.length > maxPts) {
-      const step = (pts.length - 1) / (maxPts - 1);
-      pts = Array.from({ length: maxPts }, (_, i) =>
-        trackPoints[Math.round(i * step)]
-      );
-      pts.push(trackPoints[trackPoints.length - 1]);
-    }
+    // Downsample → smooth → re-downsample to keep URL under Mapbox limit
+    let pts = downsamplePoints(trackPoints, 200);
+    pts = smoothPoints(pts, 2);
+    pts = downsamplePoints(pts, 350);
 
     const color = config.accentColor.replace('#', '');
     const encodedPoly = encodeURIComponent(encodePolyline(pts));
     const w = Math.min(1280, Math.round(previewWidth));
-    const h = Math.min(1280, Math.round(previewHeight));
+    const h = Math.min(1280, Math.round(mapSectionHeight));
 
     const isDark =
       config.backgroundColor === '#000000' ||
@@ -184,7 +191,17 @@ export function SummaryScreen({ config, trackPoints, onBack }: SummaryScreenProp
       `path-3+${color}(${encodedPoly})/auto/${w}x${h}@2x` +
       `?access_token=${mapboxToken}&logo=false&attribution=false&padding=40`
     );
-  }, [config.layout, trackPoints, mapboxToken, previewWidth, previewHeight, config.accentColor, config.backgroundColor]);
+  }, [config.layout, trackPoints, mapboxToken, previewWidth, mapSectionHeight, config.accentColor, config.backgroundColor, config.showDataOverlay]);
+
+  // Smoothed track for minimal layout
+  const smoothedTrack = useMemo(() => {
+    if (trackPoints.length < 2) return [];
+    let pts = downsamplePoints(trackPoints, 200);
+    pts = smoothPoints(pts, 2);
+    return pts;
+  }, [trackPoints]);
+
+  const trackAreaHeight = config.showDataOverlay ? mapSectionHeight : previewHeight;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -198,46 +215,67 @@ export function SummaryScreen({ config, trackPoints, onBack }: SummaryScreenProp
               style={{ 
                 backgroundColor: config.layout === 'map' ? '#ffffff' : config.backgroundColor,
                 width: `${previewWidth}px`,
-                height: `${previewHeight}px`
+                height: `${previewHeight}px`,
+                display: 'flex',
+                flexDirection: 'column',
               }}
             >
-              {/* Map + route rendered by Mapbox as single image */}
-              {summaryMapUrl && (
-                <MapImage
-                  src={summaryMapUrl}
-                  className="absolute inset-0 w-full h-full object-cover z-0"
+              {/* Map section */}
+              <div style={{
+                position: 'relative',
+                width: '100%',
+                height: config.showDataOverlay ? `${mapSectionHeight}px` : '100%',
+                overflow: 'hidden',
+              }}>
+                {summaryMapUrl && (
+                  <MapImage
+                    src={summaryMapUrl}
+                    className="absolute inset-0 w-full h-full object-cover z-0"
+                  />
+                )}
+                {config.layout === 'minimal' && smoothedTrack.length >= 2 && (
+                  <div className="absolute inset-0 z-0 flex items-center justify-center">
+                    <TrackSvg
+                      points={smoothedTrack}
+                      width={previewWidth}
+                      height={trackAreaHeight}
+                      strokeColor={config.accentColor}
+                      strokeWidth={Math.max(2, Math.round(previewWidth / 150))}
+                    />
+                  </div>
+                )}
+                {!config.showDataOverlay && (
+                  <div className={`relative z-20 h-full p-8 flex flex-col ${getLayoutClasses()}`}>
+                    <div className="flex-1 flex flex-col justify-end">
+                      <h1 
+                        className="mb-3"
+                        style={{ 
+                          color: config.accentColor,
+                          fontFamily: config.fontFamily,
+                          fontSize: `${fontSizes.title}px`,
+                          fontWeight: '700',
+                          lineHeight: '1.1'
+                        }}
+                      >
+                        {config.title}
+                      </h1>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Data overlay */}
+              {config.showDataOverlay && (
+                <DataOverlay
+                  title={config.title}
+                  data={config.overlayData}
+                  backgroundColor={config.backgroundColor}
+                  textColor={config.textColor}
+                  fontFamily={config.fontFamily}
+                  width={previewWidth}
+                  height={overlayHeight}
                 />
               )}
-              
-              <div className={`relative z-20 h-full p-8 flex flex-col ${getLayoutClasses()}`}>
-                <div className="flex-1 flex flex-col justify-end">
-                  <h1 
-                    className="mb-3"
-                    style={{ 
-                      color: config.accentColor,
-                      fontFamily: config.fontFamily,
-                      fontSize: `${fontSizes.title}px`,
-                      fontWeight: '700',
-                      lineHeight: '1.1'
-                    }}
-                  >
-                    {config.title}
-                  </h1>
-                  
-                  {config.subtitle && (
-                    <p 
-                      style={{ 
-                        color: config.textColor,
-                        fontFamily: config.fontFamily,
-                        fontSize: `${fontSizes.subtitle}px`,
-                        lineHeight: '1.3'
-                      }}
-                    >
-                      {config.subtitle}
-                    </p>
-                  )}
-                </div>
-              </div>
             </div>
             
             {/* Format and orientation indicator */}

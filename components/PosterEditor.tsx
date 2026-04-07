@@ -13,7 +13,6 @@ import { mapThemes } from '../src/mapThemes';
 
 interface PosterConfig {
   title: string;
-  subtitle: string;
   fontFamily: string;
   backgroundColor: string;
   textColor: string;
@@ -22,6 +21,14 @@ interface PosterConfig {
   showAlphabet: boolean;
   format: 'A3' | 'A4';
   orientation: 'vertical' | 'horizontal';
+  showDataOverlay: boolean;
+  overlayData: {
+    distance?: string;
+    duration?: string;
+    speed?: string;
+    elevation?: string;
+    date?: string;
+  };
 }
 
 interface PosterEditorProps {
@@ -84,17 +91,79 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
               placeholder="Enter poster title"
             />
           </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="subtitle">Subtitle</Label>
-            <Input
-              id="subtitle"
-              value={config.subtitle}
-              onChange={(e) => updateConfig({ subtitle: e.target.value })}
-              placeholder="Enter subtitle (optional)"
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <Label htmlFor="data-overlay">Data Overlay</Label>
+            <Switch
+              id="data-overlay"
+              checked={config.showDataOverlay}
+              onCheckedChange={(checked) => updateConfig({ showDataOverlay: checked as boolean })}
             />
           </div>
 
+          {config.showDataOverlay && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="overlay-distance" className="text-xs">Distance</Label>
+                  <Input
+                    id="overlay-distance"
+                    value={config.overlayData?.distance || ''}
+                    onChange={(e) => updateConfig({
+                      overlayData: { ...config.overlayData, distance: e.target.value }
+                    })}
+                    placeholder="e.g. 49.96 km"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="overlay-duration" className="text-xs">Duration</Label>
+                  <Input
+                    id="overlay-duration"
+                    value={config.overlayData?.duration || ''}
+                    onChange={(e) => updateConfig({
+                      overlayData: { ...config.overlayData, duration: e.target.value }
+                    })}
+                    placeholder="e.g. 1:47:09"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="overlay-speed" className="text-xs">Speed / Pace</Label>
+                  <Input
+                    id="overlay-speed"
+                    value={config.overlayData?.speed || ''}
+                    onChange={(e) => updateConfig({
+                      overlayData: { ...config.overlayData, speed: e.target.value }
+                    })}
+                    placeholder="e.g. 27.98 km/h"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="overlay-elevation" className="text-xs">Elevation</Label>
+                  <Input
+                    id="overlay-elevation"
+                    value={config.overlayData?.elevation || ''}
+                    onChange={(e) => updateConfig({
+                      overlayData: { ...config.overlayData, elevation: e.target.value }
+                    })}
+                    placeholder="e.g. 740 m"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="overlay-date" className="text-xs">Date</Label>
+                <Input
+                  id="overlay-date"
+                  value={config.overlayData?.date || ''}
+                  onChange={(e) => updateConfig({
+                    overlayData: { ...config.overlayData, date: e.target.value }
+                  })}
+                  placeholder="e.g. April 4th, 2026"
+                />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -103,43 +172,22 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
           <CardTitle>Style & Format</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Format and Orientation */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Paper Size</Label>
-                <ToggleGroup
-                  type="single"
-                  value={config.format}
-                  onValueChange={(value) => value && updateConfig({ format: value as 'A3' | 'A4' })}
-                  className="justify-start"
-                >
-                  <ToggleGroupItem value="A4" aria-label="A4 format">
-                    A4
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="A3" aria-label="A3 format">
-                    A3
-                  </ToggleGroupItem>
-                </ToggleGroup>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Orientation</Label>
-                <ToggleGroup
-                  type="single"
-                  value={config.orientation}
-                  onValueChange={(value) => value && updateConfig({ orientation: value as 'vertical' | 'horizontal' })}
-                  className="justify-start"
-                >
-                  <ToggleGroupItem value="vertical" aria-label="Vertical orientation">
-                    Portrait
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="horizontal" aria-label="Horizontal orientation">
-                    Landscape
-                  </ToggleGroupItem>
-                </ToggleGroup>
-              </div>
-            </div>
+          {/* Orientation */}
+          <div className="space-y-2">
+            <Label>Orientation</Label>
+            <ToggleGroup
+              type="single"
+              value={config.orientation}
+              onValueChange={(value) => value && updateConfig({ orientation: value as 'vertical' | 'horizontal' })}
+              className="justify-start"
+            >
+              <ToggleGroupItem value="vertical" aria-label="Vertical orientation">
+                Portrait
+              </ToggleGroupItem>
+              <ToggleGroupItem value="horizontal" aria-label="Horizontal orientation">
+                Landscape
+              </ToggleGroupItem>
+            </ToggleGroup>
           </div>
 
           <Separator />
@@ -170,7 +218,11 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
                 <Label>Layout</Label>
                 <Select
                   value={config.layout}
-                  onValueChange={(value: 'map' | 'modern' | 'minimal') => updateConfig({ layout: value })}
+                  onValueChange={(value: 'map' | 'modern' | 'minimal') => {
+                    const updates: Partial<PosterConfig> = { layout: value };
+                    if (value === 'minimal') updates.orientation = 'horizontal';
+                    updateConfig(updates);
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />

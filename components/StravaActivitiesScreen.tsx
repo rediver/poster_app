@@ -7,7 +7,7 @@ import { Badge } from './ui/badge';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
 import { MapPin, Clock, Calendar } from 'lucide-react';
-import { RoutePreview } from './RoutePreview';
+import { RoutePreview, decodePolyline, encodePolyline, smoothPoints, downsamplePoints } from './RoutePreview';
 import { MapImage } from './MapImage';
 
 interface ActivityApi {
@@ -31,17 +31,24 @@ interface ActivityItem {
   date: string;
   elevation: string;
   polyline?: string;
+  speed: string;
+  fullDate: string;
 }
 
 interface StravaSelection {
   activityId: string;
   titleSuggestion: string;
-  subtitleSuggestion: string;
+  overlayData?: {
+    distance?: string;
+    duration?: string;
+    speed?: string;
+    elevation?: string;
+    date?: string;
+  };
 }
 
 interface PosterConfig {
   title: string;
-  subtitle: string;
   fontFamily: string;
   backgroundColor: string;
   textColor: string;
@@ -50,6 +57,14 @@ interface PosterConfig {
   showAlphabet: boolean;
   format: 'A3' | 'A4';
   orientation: 'vertical' | 'horizontal';
+  showDataOverlay: boolean;
+  overlayData: {
+    distance?: string;
+    duration?: string;
+    speed?: string;
+    elevation?: string;
+    date?: string;
+  };
 }
 
 interface StravaActivitiesScreenProps {
@@ -156,6 +171,17 @@ export function StravaActivitiesScreen({ onActivitySelected, posterConfig }: Str
           const sec = s % 60;
           return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}` : `${m}:${String(sec).padStart(2,'0')}`;
         };
+        const fmtSpeedOrPace = (type: string, dist_m: number, time_s: number | undefined) => {
+          if (!time_s || !dist_m) return '';
+          if (type === 'Run') {
+            const paceS = time_s / (dist_m / 1000);
+            const m = Math.floor(paceS / 60);
+            const s = Math.floor(paceS % 60);
+            return `${m}:${String(s).padStart(2, '0')} min/km`;
+          }
+          const kmh = (dist_m / 1000) / (time_s / 3600);
+          return `${kmh.toFixed(2)}km/h`;
+        };
         const items: ActivityItem[] = filtered.map(a => ({
           id: String(a.id),
           type: a.type,
@@ -165,6 +191,8 @@ export function StravaActivitiesScreen({ onActivitySelected, posterConfig }: Str
           date: new Date(a.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
           elevation: `${Math.round(a.total_elevation_gain || 0)} m`,
           polyline: a.map?.summary_polyline || undefined,
+          speed: fmtSpeedOrPace(a.type, a.distance || 0, a.moving_time || a.elapsed_time),
+          fullDate: new Date(a.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
         }));
         setActivities(items);
         if (DEBUG_LOAD) logInfo('Activities loaded', { count: items.length });
@@ -191,9 +219,12 @@ export function StravaActivitiesScreen({ onActivitySelected, posterConfig }: Str
     if (!selectedPolyline || !mapboxToken) return '';
     const w = Math.min(1280, Math.round(previewWidth));
     const h = Math.min(1280, Math.round(previewHeight));
-    // Mapbox path overlay: path-{strokeWidth}+{color}({encoded_polyline})
+    // Decode → smooth → re-encode for softer curves
+    let pts = decodePolyline(selectedPolyline);
+    pts = smoothPoints(pts, 2);
+    pts = downsamplePoints(pts, 350);
     const color = posterConfig.accentColor.replace('#', '');
-    const encodedPoly = encodeURIComponent(selectedPolyline);
+    const encodedPoly = encodeURIComponent(encodePolyline(pts));
     // "auto" lets Mapbox find the best center+zoom to fit the path
     return (
       `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/` +
@@ -219,12 +250,20 @@ const getActivityColor = (type: string) => {
     if (selectedActivity) {
       const act = activities.find(a => a.id === selectedActivity);
       if (act) {
-        const parts = [act.distance, act.duration, act.elevation].filter(Boolean);
-        const subtitleSuggestion = parts.join(' · ');
         const titleSuggestion = act.name || '';
-        onActivitySelected({ activityId: selectedActivity, titleSuggestion, subtitleSuggestion });
+        onActivitySelected({
+          activityId: selectedActivity,
+          titleSuggestion,
+          overlayData: {
+            distance: act.distance,
+            duration: act.duration,
+            speed: act.speed,
+            elevation: act.elevation,
+            date: act.fullDate,
+          },
+        });
       } else {
-        onActivitySelected({ activityId: selectedActivity, titleSuggestion: '', subtitleSuggestion: '' });
+        onActivitySelected({ activityId: selectedActivity, titleSuggestion: '' });
       }
     }
   };
