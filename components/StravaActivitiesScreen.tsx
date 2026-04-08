@@ -53,7 +53,7 @@ interface PosterConfig {
   backgroundColor: string;
   textColor: string;
   accentColor: string;
-  layout: 'map' | 'modern' | 'minimal';
+  layout: 'map' | 'photo' | 'modern' | 'minimal';
   showAlphabet: boolean;
   format: 'A3' | 'A4';
   orientation: 'vertical' | 'horizontal';

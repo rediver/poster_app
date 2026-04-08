@@ -30,15 +30,18 @@ interface PosterConfig {
     elevation?: string;
     date?: string;
   };
+  visibleStatKeys?: string[];
 }
 
 interface PosterEditorProps {
   config: PosterConfig;
   onConfigChange: (config: PosterConfig) => void;
   onSummary: () => void;
+  photoUrl?: string;
+  onClearPhoto?: () => void;
 }
 
-export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditorProps) {
+export function PosterEditor({ config, onConfigChange, onSummary, photoUrl, onClearPhoto }: PosterEditorProps) {
   useLogMount('PosterEditor');
   const updateConfig = (updates: Partial<PosterConfig>) => {
     onConfigChange({ ...config, ...updates });
@@ -107,6 +110,35 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
         </CardContent>
       </Card>
 
+      {/* Photo upload button when photo layout is selected */}
+      {config.layout === 'photo' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Photo</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {photoUrl ? (
+              <div className="space-y-3">
+                <div className="w-full h-32 rounded-lg overflow-hidden bg-gray-100">
+                  <img src={photoUrl} alt="Uploaded" className="w-full h-full object-cover" />
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => onClearPhoto?.()}
+                >
+                  Change photo
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Drop a photo on the left panel or click it to upload.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Content</CardTitle>
@@ -132,6 +164,39 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
               onCheckedChange={(checked) => updateConfig({ showDataOverlay: checked as boolean })}
             />
           </div>
+
+          {config.showDataOverlay && config.layout === 'photo' && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {[
+                { key: 'distance', label: 'Distance' },
+                { key: 'elevation', label: 'Elevation' },
+                { key: 'speed', label: 'Pace' },
+                { key: 'date', label: 'Date' },
+                { key: 'duration', label: 'Time' },
+              ].map(({ key, label }) => {
+                const active = (config.visibleStatKeys || []).includes(key);
+                return (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      const current = config.visibleStatKeys || [];
+                      const next = active
+                        ? current.filter((k) => k !== key)
+                        : [...current, key];
+                      updateConfig({ visibleStatKeys: next });
+                    }}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      active
+                        ? 'bg-white text-gray-900 border-gray-300 shadow-sm'
+                        : 'bg-transparent text-gray-400 border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {config.showDataOverlay && (
             <div className="space-y-3">
@@ -248,7 +313,7 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
           {/* Colors */}
           <div className="space-y-4">
             <div className="space-y-3">
-              <Label>Color Presets</Label>
+              <Label>{config.layout === 'photo' ? 'Track Color Presets' : 'Color Presets'}</Label>
               <div className="grid grid-cols-5 gap-2">
                 {colorPresets.map((preset, index) => (
                   <button
@@ -270,6 +335,7 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
               </div>
             </div>
 
+            {config.layout !== 'photo' && (
             <div className="space-y-3">
               <Label>Map styles (z maptoposter)</Label>
               <div className="grid grid-cols-5 gap-2">
@@ -293,6 +359,7 @@ export function PosterEditor({ config, onConfigChange, onSummary }: PosterEditor
                 ))}
               </div>
             </div>
+            )}
 
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">

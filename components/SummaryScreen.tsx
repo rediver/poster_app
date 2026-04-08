@@ -14,7 +14,7 @@ interface PosterConfig {
   backgroundColor: string;
   textColor: string;
   accentColor: string;
-  layout: 'map' | 'modern' | 'minimal';
+  layout: 'map' | 'photo' | 'modern' | 'minimal';
   showAlphabet: boolean;
   format: 'A3' | 'A4';
   orientation: 'vertical' | 'horizontal';
@@ -35,9 +35,12 @@ interface SummaryScreenProps {
   config: PosterConfig;
   trackPoints: LatLng[];
   onBack: () => void;
+  photoUrl?: string;
+  photoStatsVisible?: boolean;
+  photoVisibleStats?: Set<string>;
 }
 
-export function SummaryScreen({ config, trackPoints, onBack }: SummaryScreenProps) {
+export function SummaryScreen({ config, trackPoints, onBack, photoUrl, photoStatsVisible = true, photoVisibleStats }: SummaryScreenProps) {
   useLogMount('SummaryScreen');
   const [isReviewed, setIsReviewed] = useState(false);
 
@@ -209,6 +212,51 @@ export function SummaryScreen({ config, trackPoints, onBack }: SummaryScreenProp
       <div className="flex min-h-screen">
         {/* Left side - Large Poster Preview */}
         <div ref={previewContainerRef} className="flex-1 bg-white border-r border-gray-200 flex items-center justify-center p-12">
+          {config.layout === 'photo' && photoUrl ? (
+            /* Photo poster composite */
+            <div className="relative overflow-hidden rounded-lg shadow-2xl" style={{ width: previewWidth, height: previewHeight }}>
+              <img src={photoUrl} alt="Poster photo" className="absolute inset-0 w-full h-full object-cover" style={{ zIndex: 0 }} />
+              {smoothedTrack.length >= 2 && (
+                <div className="absolute inset-0" style={{ zIndex: 1, opacity: 0.8 }}>
+                  <TrackSvg
+                    points={smoothedTrack}
+                    width={previewWidth}
+                    height={previewHeight}
+                    strokeColor={config.accentColor}
+                    strokeWidth={Math.max(3, Math.round(previewWidth / 120))}
+                  />
+                </div>
+              )}
+              {photoStatsVisible && (() => {
+                const vs = photoVisibleStats || new Set(['distance', 'speed', 'date']);
+                const statDefs = [
+                  { key: 'distance', label: 'DISTANCE' },
+                  { key: 'elevation', label: 'ELEVATION' },
+                  { key: 'speed', label: 'PACE' },
+                  { key: 'date', label: 'DATE' },
+                  { key: 'duration', label: 'TIME' },
+                ] as const;
+                const active = statDefs.filter(s => vs.has(s.key) && (config.overlayData as any)[s.key]);
+                if (!active.length) return null;
+                const fs = Math.max(10, Math.round(previewWidth / 40));
+                const vs2 = Math.max(14, Math.round(previewWidth / 24));
+                const pad = Math.max(8, Math.round(previewHeight / 30));
+                return (
+                  <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center" style={{ zIndex: 2, background: 'linear-gradient(transparent, rgba(0,0,0,0.7))', padding: `${pad * 2}px ${pad}px ${pad}px` }}>
+                    {active.map((stat, i) => (
+                      <React.Fragment key={stat.key}>
+                        {i > 0 && <div className="mx-3" style={{ width: 1, height: vs2 + fs, backgroundColor: 'rgba(255,255,255,0.3)' }} />}
+                        <div className="flex flex-col items-center">
+                          <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: fs, fontWeight: 600, letterSpacing: '0.08em', fontFamily: 'monospace' }}>{stat.label}</span>
+                          <span style={{ color: '#fff', fontSize: vs2, fontWeight: 700, fontFamily: 'monospace', lineHeight: 1.3 }}>{(config.overlayData as any)[stat.key]}</span>
+                        </div>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
           <div className="relative">
             <div 
               className="relative border-2 border-gray-300 shadow-2xl overflow-hidden"
@@ -283,6 +331,7 @@ export function SummaryScreen({ config, trackPoints, onBack }: SummaryScreenProp
               {config.format} - {config.orientation}
             </div>
           </div>
+          )}
         </div>
 
         {/* Right side - Summary and Checkout */}

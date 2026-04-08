@@ -35,7 +35,13 @@ export default defineConfig(({ mode }) => {
   // Default dev/preview for the standalone builder
   return {
     plugins: [react()],
-    server: { port: 5173, strictPort: true },
+    server: {
+      port: 5173,
+      strictPort: true,
+      proxy: {
+        '/api': 'http://localhost:5050',
+      },
+    },
     preview: { port: 5174, strictPort: true },
   }
 })

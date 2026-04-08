@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { DataImportScreen } from './components/DataImportScreen';
 import { StravaActivitiesScreen } from './components/StravaActivitiesScreen';
 import { PosterEditor } from './components/PosterEditor';
 import { SummaryScreen } from './components/SummaryScreen';
+import { PhotoUploadStep } from './components/PhotoUploadStep';
+import { PhotoPosterPreview } from './components/PhotoPosterPreview';
 import { encodePolyline, smoothPoints, downsamplePoints } from './components/RoutePreview';
 import { MapImage } from './components/MapImage';
 import { DataOverlay, OverlayData } from './components/DataOverlay';
@@ -25,6 +27,7 @@ interface PosterConfig {
   mapZoom?: number;
   showDataOverlay: boolean;
   overlayData: OverlayData;
+  visibleStatKeys?: string[];
 }
 
 type AppScreen = 'import' | 'strava-activities' | 'editor' | 'summary';
@@ -33,6 +36,8 @@ export default function App() {
   useLogMount('App component');
 const [currentScreen, setCurrentScreen] = useState<AppScreen>('import');
   const [trackPoints, setTrackPoints] = useState<LatLng[]>([]);
+  // Photo layout state
+  const [photoUrl, setPhotoUrl] = useState<string>('');
   // Preview container sizing
   const previewContainerRef = React.useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
@@ -81,6 +86,7 @@ const [currentScreen, setCurrentScreen] = useState<AppScreen>('import');
     orientation: 'vertical',
     showDataOverlay: true,
     overlayData: {},
+    visibleStatKeys: ['distance', 'speed', 'date'],
   });
 
   const handleStravaSelected = () => {
@@ -161,6 +167,11 @@ const handleGpxImported = (points: LatLng[]) => {
   const handleBackToEditor = () => {
     setCurrentScreen('editor');
   };
+
+  // Photo layout handlers
+  const handlePhotoUploaded = useCallback((url: string) => {
+    setPhotoUrl(url);
+  }, []);
 
   // Layout classes for poster preview
   const getLayoutClasses = () => {
@@ -273,18 +284,52 @@ const handleGpxImported = (points: LatLng[]) => {
     return <StravaActivitiesScreen posterConfig={config} onActivitySelected={handleActivitySelected} />;
   }
 
+
   // Show summary screen
   if (currentScreen === 'summary') {
-    return <SummaryScreen config={config} trackPoints={trackPoints} onBack={handleBackToEditor} />;
+    return (
+      <SummaryScreen
+        config={config}
+        trackPoints={trackPoints}
+        onBack={handleBackToEditor}
+        photoUrl={config.layout === 'photo' ? photoUrl : undefined}
+        photoStatsVisible={config.showDataOverlay}
+        photoVisibleStats={new Set(config.visibleStatKeys || [])}
+      />
+    );
   }
 
   // Show poster editor (default)
+  const isPhotoLayout = config.layout === 'photo';
+
   return (
     <div className="h-screen bg-gray-50 overflow-hidden">
       {/* Main content */}
       <div className="flex h-full">
         {/* Left side - Large Poster Preview (fixed) */}
         <div ref={previewContainerRef} className="flex-1 h-full bg-white border-r border-gray-200 flex items-center justify-center p-8 overflow-hidden">
+          {isPhotoLayout && photoUrl ? (
+            /* Photo poster composite preview */
+            <PhotoPosterPreview
+              photoUrl={photoUrl}
+              trackPoints={trackPoints}
+              overlayData={config.overlayData}
+              accentColor={config.accentColor}
+              width={previewWidth}
+              height={previewHeight}
+              statsVisible={config.showDataOverlay}
+              visibleStats={new Set(config.visibleStatKeys || [])}
+            />
+          ) : isPhotoLayout && !photoUrl ? (
+            /* Inline photo upload drop zone */
+            <PhotoUploadStep
+              activityName={config.title || undefined}
+              activityDate={config.overlayData?.date || undefined}
+              onPhotoUploaded={handlePhotoUploaded}
+              onBack={() => setConfig((prev) => ({ ...prev, layout: 'map' }))}
+              inline
+            />
+          ) : (
           <div className="relative">
             <div 
               className="relative border-2 border-gray-300 shadow-xl overflow-hidden"
@@ -359,6 +404,7 @@ const handleGpxImported = (points: LatLng[]) => {
               {config.format} - {config.orientation}
             </div>
           </div>
+          )}
         </div>
 
         {/* Right side - Editor (scrollable) */}
@@ -367,6 +413,8 @@ const handleGpxImported = (points: LatLng[]) => {
             config={config}
             onConfigChange={setConfig}
             onSummary={handleSummary}
+            photoUrl={photoUrl}
+            onClearPhoto={() => setPhotoUrl('')}
           />
         </div>
       </div>

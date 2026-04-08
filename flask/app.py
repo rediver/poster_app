@@ -810,6 +810,49 @@ def admin_posters():
     ]
     return jsonify({"posters": posters})
 
+# ---------- Photo upload ----------
+import uuid as _uuid
+
+ALLOWED_PHOTO_TYPES = {
+    'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
+}
+_EXT_TO_MIME = {
+    'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+    'webp': 'image/webp', 'heic': 'image/heic', 'heif': 'image/heif',
+}
+
+@app.route('/api/upload_photo', methods=['POST'])
+def api_upload_photo():
+    """Upload a user photo, store locally in generated/ and return a URL."""
+    f = request.files.get('photo')
+    if not f or not f.filename:
+        return jsonify(error='missing_photo', detail='Provide a photo file'), 400
+
+    ct = (f.content_type or '').lower()
+    ext = (f.filename.rsplit('.', 1)[-1] if '.' in f.filename else '').lower()
+    if ct not in ALLOWED_PHOTO_TYPES and _EXT_TO_MIME.get(ext) not in ALLOWED_PHOTO_TYPES:
+        return jsonify(error='invalid_type', detail=f'Unsupported image type: {ct or ext}'), 400
+
+    img_bytes = f.read()
+
+    # Detect dimensions
+    width, height = 0, 0
+    try:
+        img = Image.open(io.BytesIO(img_bytes))
+        width, height = img.size
+    except Exception as e:
+        logger.warning(f'Could not read image dimensions: {e}')
+
+    out_ext = ext if ext in ('jpg', 'jpeg', 'png', 'webp') else 'jpg'
+    filename = f"{_uuid.uuid4()}.{out_ext}"
+    filepath = os.path.join(GENERATED_DIR, filename)
+    with open(filepath, 'wb') as fp:
+        fp.write(img_bytes)
+
+    photo_url = url_for('serve_generated', filename=filename, _external=True)
+    logger.info(f'/api/upload_photo: stored {filename} url={photo_url} size={width}x{height}')
+    return jsonify(ok=True, photo_url=photo_url, width=width, height=height)
+
 # Health check for API-only use
 @app.route('/api/health')
 def health():
