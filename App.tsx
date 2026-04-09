@@ -240,11 +240,13 @@ const handleGpxImported = (points: LatLng[]) => {
       config.backgroundColor.toLowerCase() === '#111111';
     const styleId = isDark ? 'dark-v11' : 'light-v11';
 
-    return (
+    const url =
       `https://api.mapbox.com/styles/v1/mapbox/${styleId}/static/` +
       `path-3+${color}(${encodedPoly})/auto/${w}x${h}@2x` +
-      `?access_token=${mapboxToken}&logo=false&attribution=false&padding=40`
-    );
+      `?access_token=${mapboxToken}&logo=false&attribution=false&padding=40`;
+
+    console.log('[editorMapUrl]', { length: url.length, w, h, pts: pts.length, polyLen: encodedPoly.length });
+    return url;
   }, [config.layout, trackPoints, mapboxToken, previewWidth, mapSectionHeight, config.accentColor, config.backgroundColor, config.showDataOverlay]);
 
   // Smoothed track for minimal layout (no map, SVG only)
