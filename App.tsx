@@ -222,8 +222,31 @@ const handleGpxImported = (points: LatLng[]) => {
   // Build Mapbox static URL with route drawn via path overlay (same as StravaActivitiesScreen)
   const mapboxToken = (import.meta as any).env?.VITE_MAPBOX_ACCESS_TOKEN || '';
 
+  console.log('[MAP DEBUG] render state', {
+    layout: config.layout,
+    trackPointsCount: trackPoints.length,
+    hasToken: !!mapboxToken,
+    tokenPreview: mapboxToken ? mapboxToken.slice(0, 10) + '...' : '(empty)',
+    previewWidth: Math.round(previewWidth),
+    mapSectionHeight,
+    showDataOverlay: config.showDataOverlay,
+    currentScreen,
+  });
+
   const editorMapUrl = useMemo(() => {
-    if (config.layout !== 'map' || trackPoints.length < 2 || !mapboxToken) return '';
+    // Log each guard condition separately
+    if (config.layout !== 'map') {
+      console.log('[MAP DEBUG] editorMapUrl skipped: layout is', config.layout, '(not map)');
+      return '';
+    }
+    if (trackPoints.length < 2) {
+      console.log('[MAP DEBUG] editorMapUrl skipped: trackPoints.length =', trackPoints.length);
+      return '';
+    }
+    if (!mapboxToken) {
+      console.log('[MAP DEBUG] editorMapUrl skipped: mapboxToken is empty');
+      return '';
+    }
 
     // Downsample → smooth → re-downsample to keep URL under Mapbox limit
     let pts = downsamplePoints(trackPoints, 200);
@@ -231,7 +254,8 @@ const handleGpxImported = (points: LatLng[]) => {
     pts = downsamplePoints(pts, 350);
 
     const color = config.accentColor.replace('#', '');
-    const encodedPoly = encodeURIComponent(encodePolyline(pts));
+    const rawPoly = encodePolyline(pts);
+    const encodedPoly = encodeURIComponent(rawPoly);
     const w = Math.min(1280, Math.round(previewWidth));
     const h = Math.min(1280, Math.round(mapSectionHeight));
 
@@ -245,7 +269,17 @@ const handleGpxImported = (points: LatLng[]) => {
       `path-3+${color}(${encodedPoly})/auto/${w}x${h}@2x` +
       `?access_token=${mapboxToken}&logo=false&attribution=false&padding=40`;
 
-    console.log('[editorMapUrl]', { length: url.length, w, h, pts: pts.length, polyLen: encodedPoly.length });
+    console.log('[MAP DEBUG] editorMapUrl BUILT', {
+      urlLength: url.length,
+      imgSize: `${w}x${h}`,
+      style: styleId,
+      ptsIn: trackPoints.length,
+      ptsOut: pts.length,
+      rawPolyLen: rawPoly.length,
+      encodedPolyLen: encodedPoly.length,
+      sampleCoords: trackPoints.slice(0, 3),
+      urlStart: url.slice(0, 150),
+    });
     return url;
   }, [config.layout, trackPoints, mapboxToken, previewWidth, mapSectionHeight, config.accentColor, config.backgroundColor, config.showDataOverlay]);
 
@@ -354,11 +388,19 @@ const handleGpxImported = (points: LatLng[]) => {
                 height: config.showDataOverlay ? `${mapSectionHeight}px` : '100%',
                 overflow: 'hidden',
               }}>
-                {editorMapUrl && (
+                {editorMapUrl ? (
                   <MapImage
                     src={editorMapUrl}
                     className="absolute inset-0 w-full h-full object-cover z-0"
                   />
+                ) : (
+                  <div className="absolute inset-0 z-0 flex items-center justify-center">
+                    <span className="text-xs text-gray-300">
+                      {config.layout === 'map'
+                        ? `No map URL (track: ${trackPoints.length} pts, token: ${mapboxToken ? 'yes' : 'NO'})`
+                        : ''}
+                    </span>
+                  </div>
                 )}
                 {config.layout === 'minimal' && smoothedTrack.length >= 2 && (
                   <div className="absolute inset-0 z-0 flex items-center justify-center">
