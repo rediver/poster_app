@@ -313,7 +313,7 @@ export function PosterEditor({ config, onConfigChange, onSummary, photoUrl, onCl
           {/* Colors */}
           <div className="space-y-4">
             <div className="space-y-3">
-              <Label>{config.layout === 'photo' ? 'Track Color Presets' : 'Color Presets'}</Label>
+              <Label>Color Presets</Label>
               <div className="grid grid-cols-5 gap-2">
                 {colorPresets.map((preset, index) => (
                   <button
@@ -363,7 +363,7 @@ export function PosterEditor({ config, onConfigChange, onSummary, photoUrl, onCl
 
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="bg-color">Background</Label>
+                <Label htmlFor="bg-color">{config.layout === 'photo' ? 'Value' : 'Background'}</Label>
                 <input
                   id="bg-color"
                   type="color"
@@ -374,7 +374,7 @@ export function PosterEditor({ config, onConfigChange, onSummary, photoUrl, onCl
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="text-color">Text</Label>
+                <Label htmlFor="text-color">{config.layout === 'photo' ? 'Label' : 'Text'}</Label>
                 <input
                   id="text-color"
                   type="color"
@@ -385,7 +385,7 @@ export function PosterEditor({ config, onConfigChange, onSummary, photoUrl, onCl
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="accent-color">Accent</Label>
+                <Label htmlFor="accent-color">{config.layout === 'photo' ? 'Track' : 'Accent'}</Label>
                 <input
                   id="accent-color"
                   type="color"

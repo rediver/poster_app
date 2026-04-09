@@ -312,9 +312,13 @@ const handleGpxImported = (points: LatLng[]) => {
             /* Photo poster composite preview */
             <PhotoPosterPreview
               photoUrl={photoUrl}
+              title={config.title}
               trackPoints={trackPoints}
               overlayData={config.overlayData}
               accentColor={config.accentColor}
+              labelColor={config.textColor}
+              valueColor={config.backgroundColor}
+              fontFamily={config.fontFamily}
               width={previewWidth}
               height={previewHeight}
               statsVisible={config.showDataOverlay}

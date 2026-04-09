@@ -29,9 +29,13 @@ const ALL_STATS: StatDef[] = [
 
 interface PhotoPosterPreviewProps {
   photoUrl: string;
+  title: string;
   trackPoints: LatLng[];
   overlayData: PhotoOverlayData;
   accentColor: string;
+  labelColor: string;
+  valueColor: string;
+  fontFamily: string;
   width: number;
   height: number;
   statsVisible: boolean;
@@ -40,9 +44,13 @@ interface PhotoPosterPreviewProps {
 
 export function PhotoPosterPreview({
   photoUrl,
+  title,
   trackPoints,
   overlayData,
   accentColor,
+  labelColor,
+  valueColor,
+  fontFamily,
   width,
   height,
   statsVisible,
@@ -61,6 +69,7 @@ export function PhotoPosterPreview({
     (s) => visibleStats.has(s.key) && overlayData[s.key],
   );
 
+  const titleSize = Math.max(16, Math.round(width / 16));
   const barFontSize = Math.max(10, Math.round(width / 40));
   const barValueSize = Math.max(14, Math.round(width / 24));
   const barPadding = Math.max(8, Math.round(height / 30));
@@ -80,9 +89,30 @@ export function PhotoPosterPreview({
           style={{ zIndex: 0 }}
         />
 
+        {/* Title */}
+        {title && (
+          <div
+            className="absolute top-0 left-0 right-0"
+            style={{ zIndex: 2, padding: `${barPadding}px` }}
+          >
+            <h1
+              style={{
+                color: valueColor,
+                fontSize: titleSize,
+                fontWeight: 700,
+                fontFamily,
+                textShadow,
+                lineHeight: 1.2,
+              }}
+            >
+              {title}
+            </h1>
+          </div>
+        )}
+
         {/* GPX track overlay */}
         {smoothedTrack.length >= 2 && (
-          <div className="absolute inset-0" style={{ zIndex: 1, opacity: 0.8 }}>
+          <div className="absolute inset-0" style={{ zIndex: 1 }}>
             <TrackSvg
               points={smoothedTrack}
               width={width}
@@ -118,11 +148,11 @@ export function PhotoPosterPreview({
                 <div className="flex flex-col items-center">
                   <span
                     style={{
-                      color: 'rgba(255,255,255,0.8)',
+                      color: labelColor,
                       fontSize: barFontSize,
                       fontWeight: 600,
                       letterSpacing: '0.08em',
-                      fontFamily: 'monospace',
+                      fontFamily,
                       textShadow,
                     }}
                   >
@@ -130,10 +160,10 @@ export function PhotoPosterPreview({
                   </span>
                   <span
                     style={{
-                      color: '#ffffff',
+                      color: valueColor,
                       fontSize: barValueSize,
                       fontWeight: 700,
-                      fontFamily: 'monospace',
+                      fontFamily,
                       lineHeight: 1.3,
                       textShadow,
                     }}
