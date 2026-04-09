@@ -63,3 +63,5 @@ services:
       # Frontend will call backend directly (CORS enabled on backend)
       - key: VITE_BACKEND_URL
         value: "https://poster-backend-94h1.onrender.com"
+      - key: VITE_MAPBOX_ACCESS_TOKEN
+        sync: false
