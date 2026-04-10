@@ -35,12 +35,13 @@ interface SummaryScreenProps {
   config: PosterConfig;
   trackPoints: LatLng[];
   onBack: () => void;
+  activityId: string;
   photoUrl?: string;
   photoStatsVisible?: boolean;
   photoVisibleStats?: Set<string>;
 }
 
-export function SummaryScreen({ config, trackPoints, onBack, photoUrl, photoStatsVisible = true, photoVisibleStats }: SummaryScreenProps) {
+export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUrl, photoStatsVisible = true, photoVisibleStats }: SummaryScreenProps) {
   useLogMount('SummaryScreen');
   const [isReviewed, setIsReviewed] = useState(false);
 
@@ -73,15 +74,37 @@ export function SummaryScreen({ config, trackPoints, onBack, photoUrl, photoStat
     setErrorMsg(null);
     setSubmitting(true);
     try {
-      // 1) Ask backend to render and store the poster image from track points
-      const genRes = await fetch(`${BACKEND_URL}/api/generate`, {
+      // 1) Ask backend to compose and store the poster image on S3
+      const backgroundType = config.layout === 'map' ? 'map' : (config.layout === 'photo' ? 'image' : 'solid');
+      const isDark =
+        config.backgroundColor === '#000000' ||
+        config.backgroundColor.toLowerCase() === '#111111';
+      const styleId = isDark ? 'mapbox/dark-v11' : 'mapbox/light-v11';
+
+      // Attach Strava token so backend can fetch activity streams
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      try {
+        const authData = JSON.parse(localStorage.getItem('strava_auth') || '{}');
+        if (authData?.access_token) {
+          headers['Authorization'] = `Bearer ${authData.access_token}`;
+        }
+      } catch (_e) { /* ignore */ }
+
+      const genRes = await fetch(`${BACKEND_URL}/api/save_poster_composed`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include',
-        body: JSON.stringify({ points: trackPoints })
+        body: JSON.stringify({
+          activity_id: activityId,
+          title: config.title,
+          line_color: config.accentColor,
+          solid_color: config.backgroundColor,
+          background_type: backgroundType,
+          style_id: styleId,
+        })
       });
       const genData = await genRes.json().catch(() => ({}));
-      if (!genRes.ok || !genData.ok) {
+      if (!genRes.ok || !genData.image_url) {
         throw new Error(genData.error || `Render failed (${genRes.status})`);
       }
 
@@ -91,7 +114,7 @@ export function SummaryScreen({ config, trackPoints, onBack, photoUrl, photoStat
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          image_url: genData.preview_url,
+          image_url: genData.image_url,
           title: config.title && config.title.trim() ? config.title.trim() : undefined,
           poster_id: genData.id,
           width: genData.width,

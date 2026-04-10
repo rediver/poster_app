@@ -12,6 +12,7 @@ from loguru import logger
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
+import boto3
 from strava import (
     get_strava_access_token,
     get_strava_activities,
@@ -577,8 +578,6 @@ def export_poster_composed():
 @app.route('/api/save_poster_composed', methods=['POST'])
 def save_poster_composed():
     try:
-        if not conn:
-            return jsonify({"error": "DATABASE_URL not configured"}), 500
         payload = request.get_json(force=True)
         # Reuse composition by calling export_poster_composed internals; here we'll inline minimal shared logic by calling it partially
         # Call export logic to get a high-res RGB image for preview storage
@@ -588,6 +587,12 @@ def save_poster_composed():
         activity_id = str(payload.get('activity_id', '')).strip()
         if not activity_id:
             return jsonify({"error": "activity_id is required"}), 400
+
+        # Extract Strava token from Authorization header (same as download_gpx)
+        auth_header = request.headers.get('Authorization', '')
+        access_token = None
+        if isinstance(auth_header, str) and auth_header.lower().startswith('bearer '):
+            access_token = auth_header.split(' ', 1)[1].strip()
         title = payload.get('title') or ''
         subtitle = payload.get('subtitle') or ''
         description = payload.get('description') or ''
@@ -607,7 +612,7 @@ def save_poster_composed():
         # For brevity, we call export_poster_composed composition logic via an inner function pattern—omitted for clarity. Here we duplicate code segments.
 
         # Fetch streams
-        streams = get_activity_streams(activity_id)
+        streams = get_activity_streams(activity_id, access_token=access_token)
         if 'latlng' not in streams or not streams['latlng'].get('data'):
             return jsonify({"error": "No latlng stream available for this activity"}), 400
         latlng = streams['latlng']['data']
@@ -633,7 +638,7 @@ def save_poster_composed():
         def _fmt_elev(meters: float) -> str:
             return f"+{round(meters)} m"
         try:
-            details = get_activity_details(activity_id)
+            details = get_activity_details(activity_id, access_token=access_token)
             # Do not auto-set title from activity name; only use user-provided title
             if not subtitle:
                 dist = details.get('distance') or 0
@@ -737,24 +742,46 @@ def save_poster_composed():
             desc_y = height_px - margin - 40
             draw.text((margin, desc_y), description, fill=(0,0,0), font=desc_font)
 
-        # Save preview PNG
+        # Save preview PNG to S3
         timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
         athlete = session.get('athlete') or {}
         username = athlete.get('username', 'unknown')
         user_id = str(athlete.get('id', ''))
         filename = secure_filename(f"poster_{username}_{timestamp}.png")
-        filepath = os.path.join(GENERATED_DIR, filename)
-        bg_img.save(filepath, format='PNG', optimize=True)
 
-        # Insert DB record
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO posters (user_name, user_id, activity_id, params, image_path) VALUES (%s,%s,%s,%s,%s) RETURNING id",
-                (username, user_id, activity_id, json.dumps(payload), filename)
+        img_io = io.BytesIO()
+        bg_img.save(img_io, format='PNG', optimize=True)
+        img_io.seek(0)
+
+        try:
+            bucket_name = os.getenv("S3_BUCKET")
+            aws_region = os.getenv("AWS_REGION", "us-east-1")
+            s3_client = boto3.client('s3')
+            s3_key = f"posters/{filename}"
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key=s3_key,
+                Body=img_io,
+                ContentType='image/png',
+                ACL='public-read'
             )
-            poster_id = cur.fetchone()[0]
-            conn.commit()
-        return jsonify({"id": poster_id, "image_url": url_for('serve_generated', filename=filename, _external=True), "confirm_url": url_for('poster_confirm', poster_id=poster_id, _external=True)})
+            public_url = f"https://{bucket_name}.s3.{aws_region}.amazonaws.com/{s3_key}"
+        except Exception as e:
+            logger.exception("S3 upload failed")
+            return jsonify({"error": "Failed to upload to S3"}), 500
+
+        # Insert DB record (optional in MVP mode)
+        if conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO posters (user_name, user_id, activity_id, params, image_path) VALUES (%s,%s,%s,%s,%s) RETURNING id",
+                    (username, user_id, activity_id, json.dumps(payload), public_url)
+                )
+                poster_id = cur.fetchone()[0]
+                conn.commit()
+        else:
+            poster_id = "no_db"
+        return jsonify({"id": poster_id, "image_url": public_url})
     except Exception as e:
         logger.exception("Error saving poster")
         return jsonify({"error": "Failed to save poster"}), 500

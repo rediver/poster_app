@@ -36,6 +36,7 @@ export default function App() {
   useLogMount('App component');
 const [currentScreen, setCurrentScreen] = useState<AppScreen>('import');
   const [trackPoints, setTrackPoints] = useState<LatLng[]>([]);
+  const [activityId, setActivityId] = useState<string>('');
   // Photo layout state
   const [photoUrl, setPhotoUrl] = useState<string>('');
   // Preview container sizing
@@ -107,6 +108,9 @@ const handleGpxImported = (points: LatLng[]) => {
 
   type ActivitySelection = { titleSuggestion?: string; activityId?: string | number; overlayData?: OverlayData };
   const handleActivitySelected = async (selection: ActivitySelection) => {
+    if (selection?.activityId) {
+      setActivityId(String(selection.activityId));
+    }
     setConfig((prev) => ({
       ...prev,
       title: (selection && selection.titleSuggestion) || '',
@@ -328,6 +332,7 @@ const handleGpxImported = (points: LatLng[]) => {
         config={config}
         trackPoints={trackPoints}
         onBack={handleBackToEditor}
+        activityId={activityId}
         photoUrl={config.layout === 'photo' ? photoUrl : undefined}
         photoStatsVisible={config.showDataOverlay}
         photoVisibleStats={new Set(config.visibleStatKeys || [])}
