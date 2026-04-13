@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react';
+
+const SHOPIFY_VARIANT_ID = '53104872849750';
 import { logModule, useLogMount } from '../src/debug';
 logModule('components/SummaryScreen.tsx module');
 import { Button } from './ui/button';
@@ -108,30 +110,9 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
         throw new Error(genData.error || `Render failed (${genRes.status})`);
       }
 
-      // 2) Create a Shopify product using the rendered image
-      const createRes = await fetch(`${BACKEND_URL}/api/create_product`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          image_url: genData.image_url,
-          title: config.title && config.title.trim() ? config.title.trim() : undefined,
-          poster_id: genData.id,
-          width: genData.width,
-          height: genData.height,
-        })
-      });
-      const createData = await createRes.json().catch(() => ({}));
-      if (!createRes.ok || !createData.ok) {
-        throw new Error(createData.error || `Create product failed (${createRes.status})`);
-      }
-
-      // 3) Redirect to new product page
-      if (createData.product_url) {
-        window.location.href = createData.product_url;
-      } else if (createData.admin_url) {
-        window.location.href = createData.admin_url;
-      }
+      // 2) Redirect to Shopify cart with the poster image
+      const cartUrl = `https://cycling-app.myshopify.com/cart/${SHOPIFY_VARIANT_ID}:1?properties[Poster Image]=${encodeURIComponent(genData.image_url)}&properties[Title]=${encodeURIComponent(config.title || '')}`;
+      window.location.href = cartUrl;
     } catch (e: any) {
       console.error('Confirm/create product failed', e);
       setErrorMsg(e?.message || 'Failed to create product');
