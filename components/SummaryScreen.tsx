@@ -224,6 +224,39 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* ── Submission overlay ─────────────────────────────────────── */}
+      {submitting && (
+        <>
+          {/* Subtle full-screen dimming */}
+          <div
+            className="fixed inset-0 z-40 pointer-events-none transition-opacity duration-300"
+            style={{ background: 'rgba(255,255,255,0.30)' }}
+          />
+          {/* Indeterminate progress bar at top edge */}
+          <div
+            className="fixed top-0 left-0 right-0 z-50 overflow-hidden"
+            style={{ height: 3 }}
+          >
+            {/* track */}
+            <div className="absolute inset-0" style={{ background: 'rgba(249,115,22,0.18)' }} />
+            {/* moving fill */}
+            <div
+              className="absolute top-0 h-full rounded-full"
+              style={{
+                width: '42%',
+                background: 'rgb(249,115,22)',
+                animation: 'poster-progress 1.5s cubic-bezier(0.4,0,0.2,1) infinite',
+              }}
+            />
+          </div>
+          <style>{`
+            @keyframes poster-progress {
+              0%   { left: -42%; }
+              100% { left: 142%; }
+            }
+          `}</style>
+        </>
+      )}
       {/* Main content */}
       <div className="flex min-h-screen">
         {/* Left side - Large Poster Preview */}
