@@ -104,6 +104,15 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
           solid_color: config.backgroundColor,
           background_type: backgroundType,
           style_id: styleId,
+          // Photo-layout specific – only sent when layout === 'photo'
+          ...(backgroundType === 'image' && photoUrl ? {
+            photo_url: photoUrl,
+            overlay_data: config.overlayData,
+            photo_stats_visible: photoStatsVisible,
+            photo_visible_stats: photoVisibleStats
+              ? [...photoVisibleStats]
+              : ['distance', 'speed', 'date'],
+          } : {}),
         })
       });
       const genData = await genRes.json().catch(() => ({}));

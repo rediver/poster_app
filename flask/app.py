@@ -608,6 +608,11 @@ def save_poster_composed():
         blur_radius = int(payload.get('blur_radius') or 0)
         monochrome = bool(payload.get('monochrome') or False)
         mono_color = payload.get('mono_color') or '#808080'
+        # Photo-layout specific (sent only when layout === 'photo')
+        photo_url    = (payload.get('photo_url') or '').strip()
+        overlay_data = dict(payload.get('overlay_data') or {})
+        photo_visible = list(payload.get('photo_visible_stats') or ['distance', 'speed', 'date'])
+        photo_stats   = bool(payload.get('photo_stats_visible', True))
 
         # Build bg_img same as export_poster_composed by calling it indirectly is complex; we replicate minimal steps by invoking a private function would be better.
         # For brevity, we call export_poster_composed composition logic via an inner function pattern—omitted for clarity. Here we duplicate code segments.
@@ -679,7 +684,7 @@ def save_poster_composed():
             logger.warning(f"Could not derive subtitle from activity details: {_e}")
 
         # ──────────────────────────────────────────────────────────────────────
-        # Helpers
+        # Shared helpers
         # ──────────────────────────────────────────────────────────────────────
         def hex_to_rgb(h):
             h = h.lstrip('#')
@@ -702,121 +707,209 @@ def save_poster_composed():
             except Exception:
                 return ImageFont.load_default()
 
-        # ──────────────────────────────────────────────────────────────────────
-        # 1.  Build MAP SECTION image  (width_px × map_h)
-        #     Tiles use centre+zoom Mercator – same projection as to_xy()
-        # ──────────────────────────────────────────────────────────────────────
-        if background_type == 'solid':
-            map_img = Image.new('RGB', (width_px, map_h),
-                                color=hex_to_rgb(solid_color))
-        elif background_type == 'image' and background_image_data:
-            _hdr, b64d = background_image_data.split(',', 1)
-            src_img = Image.open(io.BytesIO(base64.b64decode(b64d))).convert('RGB')
-            map_img = src_img.resize((width_px, map_h), resample=Image.LANCZOS)
-        else:
-            # Mapbox: tile grid with centre+zoom so every tile aligns with to_xy()
-            style_path = style_id if '/' in style_id else f"mapbox/{style_id}"
-            MAX_REQ = 1280
-            cols = max(1, math.ceil(width_px / (MAX_REQ * 2)))
-            rows = max(1, math.ceil(map_h    / (MAX_REQ * 2)))
-            seg_w = [width_px // cols] * cols
-            for i in range(width_px % cols): seg_w[i] += 1
-            seg_h = [map_h // rows] * rows
-            for j in range(map_h % rows): seg_h[j] += 1
-            map_img = Image.new('RGB', (width_px, map_h), color=(255, 255, 255))
-            y_off = 0
-            for r in range(rows):
-                x_off = 0
-                for c in range(cols):
-                    tw, th = seg_w[c], seg_h[r]
-                    # tile centre in lat/lon, referenced to map section dimensions
-                    tc_lat, tc_lon = _px_to_latlon(
-                        x_off + tw / 2.0, y_off + th / 2.0,
-                        center_lat_r, center_lon_r, map_zoom, width_px, map_h,
-                    )
-                    req_w = min(MAX_REQ, math.ceil(tw / 2))
-                    req_h = min(MAX_REQ, math.ceil(th / 2))
-                    tile_url = (
-                        f"https://api.mapbox.com/styles/v1/{style_path}/static/"
-                        f"{tc_lon:.6f},{tc_lat:.6f},{map_zoom:.4f},0,0/"
-                        f"{req_w}x{req_h}@2x"
-                        f"?access_token={MAPBOX_ACCESS_TOKEN}&logo=false&attribution=false"
-                    )
-                    resp = requests.get(tile_url)
-                    if resp.status_code != 200:
-                        logger.error(f"Mapbox tile {r},{c} → {resp.status_code}: {resp.text[:200]}")
-                        return jsonify({"error": "Failed to fetch map tile"}), 502
-                    tile_img = Image.open(io.BytesIO(resp.content)).convert('RGB')
-                    if tile_img.size != (tw, th):
-                        tile_img = tile_img.resize((tw, th), resample=Image.LANCZOS)
-                    map_img.paste(tile_img, (x_off, y_off))
-                    x_off += tw
-                y_off += seg_h[r]
+        is_photo_layout = (background_type == 'image' and bool(photo_url))
 
-        # Optional effects on map section
-        if monochrome:
-            gray = ImageOps.grayscale(map_img)
-            map_img = ImageOps.colorize(gray, black=(0, 0, 0),
-                                        white=hex_to_rgb(mono_color))
-        if blur_radius and blur_radius > 0:
-            map_img = map_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-
-        # ──────────────────────────────────────────────────────────────────────
-        # 2.  Draw route on map section
-        #     to_xy() references map_h/2 so route centres in the map section
-        # ──────────────────────────────────────────────────────────────────────
-        route_color = hex_to_rgb(line_color)
-        draw_map = ImageDraw.Draw(map_img)
-
-        def to_xy(lat, lon):
-            sc = 256.0 * (2.0 ** map_zoom)
-            cx = (center_lon_r + 180.0) / 360.0 * sc
-            cy = (1.0 - _merc_y(center_lat_r) / math.pi) / 2.0 * sc
-            px_ = (lon + 180.0) / 360.0 * sc
-            py_ = (1.0 - _merc_y(lat) / math.pi) / 2.0 * sc
-            return int(px_ - cx + width_px / 2), int(py_ - cy + map_h / 2)
-
-        pts = [to_xy(lat, lon) for lat, lon in latlng]
-        if len(pts) >= 2:
-            draw_map.line(pts, fill=route_color, width=line_width, joint="curve")
-
-        # ──────────────────────────────────────────────────────────────────────
-        # 3.  Assemble full canvas: map section (top) + data overlay (bottom)
-        #     Overlay mirrors the editor’s DataOverlay component
-        # ──────────────────────────────────────────────────────────────────────
-        # Overlay background: black for map/image layouts, solid_color otherwise
-        overlay_bg = hex_to_rgb(solid_color) if background_type == 'solid' else (0, 0, 0)
-        full_img   = Image.new('RGB', (width_px, height_px), color=overlay_bg)
-        full_img.paste(map_img, (0, 0))   # map section at top
-
-        draw_full = ImageDraw.Draw(full_img)
-
-        # Font sizes proportional to overlay height
-        title_sz = max(130, int(overlay_h * 0.22))   # ~240 px at A3
-        sub_sz   = max(70,  int(overlay_h * 0.12))   # ~130 px
-
-        title_font = _load_font(title_sz)
-        sub_font   = _load_font(sub_sz)
-
-        # Text colour: white on dark overlay, dark on light
-        _ov_is_dark = sum(overlay_bg) < 384
-        txt_fill = (255, 255, 255) if _ov_is_dark else (20, 20, 20)
-
-        def _draw_centered(text, font, y):
+        if is_photo_layout:
+            # ──────────────────────────────────────────────────────────────────────
+            # PHOTO POSTER – replicates the editor’s photo layout exactly:
+            #   full-canvas photo  →  route on top  →  gradient+stats at bottom
+            # ──────────────────────────────────────────────────────────────────────
+            # 1. Fetch and crop photo to full canvas (object-cover semantics)
             try:
-                tw = int(draw_full.textlength(text, font=font))
-            except Exception:
-                try:
-                    tw = int(font.getlength(text))
-                except Exception:
-                    tw = 0
-            x = max(0, (width_px - tw) // 2)
-            draw_full.text((x, y), text, fill=txt_fill, font=font)
+                rp = requests.get(photo_url, timeout=20)
+                rp.raise_for_status()
+                src = Image.open(io.BytesIO(rp.content)).convert('RGB')
+            except Exception as _fe:
+                logger.error(f"Failed to fetch photo {photo_url}: {_fe}")
+                return jsonify({"error": "Failed to fetch poster photo"}), 502
+            sw, sh = src.size
+            scale  = max(width_px / sw, height_px / sh)
+            sw2, sh2 = int(sw * scale), int(sh * scale)
+            src    = src.resize((sw2, sh2), resample=Image.LANCZOS)
+            ox, oy = (sw2 - width_px) // 2, (sh2 - height_px) // 2
+            full_img = src.crop((ox, oy, ox + width_px, oy + height_px))
 
-        if title:
-            _draw_centered(title,    title_font, map_h + int(overlay_h * 0.18))
-        if subtitle:
-            _draw_centered(subtitle, sub_font,   map_h + int(overlay_h * 0.55))
+            # 2. Draw route (decorative, fits full canvas with 82 % fill)
+            _zp = max(0.0, min(20.0, min(
+                math.log2(width_px  * 0.82 / (256.0 * (_lon_span / 360.0))),
+                math.log2(height_px * 0.82 / (256.0 * (_lat_span / math.pi))),
+            )))
+            draw_ph = ImageDraw.Draw(full_img)
+
+            def _to_xy_p(lat, lon):
+                sc   = 256.0 * (2.0 ** _zp)
+                _cx  = (center_lon_r + 180.0) / 360.0 * sc
+                _cy  = (1.0 - _merc_y(center_lat_r) / math.pi) / 2.0 * sc
+                _px  = (lon + 180.0) / 360.0 * sc
+                _py  = (1.0 - _merc_y(lat) / math.pi) / 2.0 * sc
+                return int(_px - _cx + width_px / 2), int(_py - _cy + height_px / 2)
+
+            pts_p = [_to_xy_p(la, lo) for la, lo in latlng]
+            if len(pts_p) >= 2:
+                draw_ph.line(pts_p, fill=hex_to_rgb(line_color),
+                             width=line_width, joint="curve")
+
+            # 3. Gradient + stats at bottom (mirrors editor photo stats bar)
+            _stat_order = [
+                ('distance', 'DISTANCE'), ('elevation', 'ELEVATION'),
+                ('speed', 'PACE'), ('date', 'DATE'), ('duration', 'TIME'),
+            ]
+            active_st = [
+                (lbl, str(overlay_data.get(k, '')))
+                for k, lbl in _stat_order
+                if k in photo_visible and overlay_data.get(k)
+            ]
+            if photo_stats and active_st:
+                grad_h  = int(height_px * 0.28)
+                grad_y0 = height_px - grad_h
+                # RGBA gradient compositing (transparent → dark)
+                base_rgba  = full_img.convert('RGBA')
+                grad_layer = Image.new('RGBA', (width_px, height_px), (0, 0, 0, 0))
+                gd = ImageDraw.Draw(grad_layer)
+                for dy in range(grad_h):
+                    alpha = int(200 * dy / grad_h)
+                    gd.line([(0, grad_y0 + dy), (width_px - 1, grad_y0 + dy)],
+                            fill=(0, 0, 0, alpha), width=1)
+                full_img = Image.alpha_composite(base_rgba, grad_layer).convert('RGB')
+                draw_ph  = ImageDraw.Draw(full_img)
+
+                n       = len(active_st)
+                col     = width_px // n
+                base_y  = grad_y0 + int(grad_h * 0.14)
+
+                # Font size: limited by BOTH canvas height AND column width.
+                # Without the column-width cap, long values like "April 12, 2026"
+                # overflow into adjacent columns on a 3508 px canvas.
+                max_val_chars = max((len(v) for _, v in active_st), default=8)
+                # DejaVu Bold char width ≈ 0.58 × font_size (conservative)
+                val_by_h = max(80, height_px // 32)                              # ~155 px at A3
+                val_by_w = max(80, int(col * 0.72 / max(1, max_val_chars * 0.58)))  # fit in col
+                val_sz   = min(val_by_h, val_by_w)
+                lbl_sz   = max(40, val_sz // 2)
+                lbl_f    = _load_font(lbl_sz)
+                val_f    = _load_font(val_sz)
+
+                for i, (lbl, val) in enumerate(active_st):
+                    col_cx = col * i + col // 2
+
+                    def _ct(text, font, dy, fill, _d=draw_ph, _c=col_cx):
+                        try:
+                            tw = int(_d.textlength(text, font=font))
+                        except Exception:
+                            tw = 0
+                        _d.text((max(0, _c - tw // 2), base_y + dy),
+                                text, fill=fill, font=font)
+
+                    _ct(lbl, lbl_f, 0,           (170, 170, 170))
+                    _ct(val, val_f, lbl_sz + 24, (255, 255, 255))
+                    if i < n - 1:
+                        sx = col * (i + 1)
+                        draw_ph.line([(sx, base_y), (sx, base_y + lbl_sz + val_sz)],
+                                     fill=(180, 180, 180), width=4)
+
+        else:
+            # ──────────────────────────────────────────────────────────────────────
+            # MAP / SOLID LAYOUT  – map section (78 %) + data overlay (22 %)
+            # ──────────────────────────────────────────────────────────────────────
+            # 1. Build MAP SECTION image  (width_px × map_h)
+            if background_type == 'solid':
+                map_img = Image.new('RGB', (width_px, map_h),
+                                    color=hex_to_rgb(solid_color))
+            elif background_type == 'image' and background_image_data:
+                _hdr, b64d = background_image_data.split(',', 1)
+                src_img = Image.open(io.BytesIO(base64.b64decode(b64d))).convert('RGB')
+                map_img = src_img.resize((width_px, map_h), resample=Image.LANCZOS)
+            else:
+                # Mapbox: tile grid with centre+zoom – aligns with to_xy()
+                style_path = style_id if '/' in style_id else f"mapbox/{style_id}"
+                MAX_REQ = 1280
+                cols = max(1, math.ceil(width_px / (MAX_REQ * 2)))
+                rows = max(1, math.ceil(map_h    / (MAX_REQ * 2)))
+                seg_w = [width_px // cols] * cols
+                for i in range(width_px % cols): seg_w[i] += 1
+                seg_h = [map_h // rows] * rows
+                for j in range(map_h % rows): seg_h[j] += 1
+                map_img = Image.new('RGB', (width_px, map_h), color=(255, 255, 255))
+                y_off = 0
+                for r in range(rows):
+                    x_off = 0
+                    for c in range(cols):
+                        tw, th = seg_w[c], seg_h[r]
+                        tc_lat, tc_lon = _px_to_latlon(
+                            x_off + tw / 2.0, y_off + th / 2.0,
+                            center_lat_r, center_lon_r, map_zoom, width_px, map_h,
+                        )
+                        req_w = min(MAX_REQ, math.ceil(tw / 2))
+                        req_h = min(MAX_REQ, math.ceil(th / 2))
+                        tile_url = (
+                            f"https://api.mapbox.com/styles/v1/{style_path}/static/"
+                            f"{tc_lon:.6f},{tc_lat:.6f},{map_zoom:.4f},0,0/"
+                            f"{req_w}x{req_h}@2x"
+                            f"?access_token={MAPBOX_ACCESS_TOKEN}&logo=false&attribution=false"
+                        )
+                        resp = requests.get(tile_url)
+                        if resp.status_code != 200:
+                            logger.error(f"Mapbox tile {r},{c} → {resp.status_code}: {resp.text[:200]}")
+                            return jsonify({"error": "Failed to fetch map tile"}), 502
+                        tile_img = Image.open(io.BytesIO(resp.content)).convert('RGB')
+                        if tile_img.size != (tw, th):
+                            tile_img = tile_img.resize((tw, th), resample=Image.LANCZOS)
+                        map_img.paste(tile_img, (x_off, y_off))
+                        x_off += tw
+                    y_off += seg_h[r]
+
+            # Optional effects
+            if monochrome:
+                gray = ImageOps.grayscale(map_img)
+                map_img = ImageOps.colorize(gray, black=(0, 0, 0),
+                                            white=hex_to_rgb(mono_color))
+            if blur_radius and blur_radius > 0:
+                map_img = map_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+
+            # 2. Draw route (centred in map section)
+            route_color = hex_to_rgb(line_color)
+            draw_map    = ImageDraw.Draw(map_img)
+
+            def to_xy(lat, lon):
+                sc = 256.0 * (2.0 ** map_zoom)
+                cx = (center_lon_r + 180.0) / 360.0 * sc
+                cy = (1.0 - _merc_y(center_lat_r) / math.pi) / 2.0 * sc
+                px_ = (lon + 180.0) / 360.0 * sc
+                py_ = (1.0 - _merc_y(lat) / math.pi) / 2.0 * sc
+                return int(px_ - cx + width_px / 2), int(py_ - cy + map_h / 2)
+
+            pts = [to_xy(lat, lon) for lat, lon in latlng]
+            if len(pts) >= 2:
+                draw_map.line(pts, fill=route_color, width=line_width, joint="curve")
+
+            # 3. Assemble full canvas: map section + data overlay
+            overlay_bg = hex_to_rgb(solid_color) if background_type == 'solid' else (0, 0, 0)
+            full_img   = Image.new('RGB', (width_px, height_px), color=overlay_bg)
+            full_img.paste(map_img, (0, 0))
+
+            draw_full = ImageDraw.Draw(full_img)
+            title_sz  = max(130, int(overlay_h * 0.22))
+            sub_sz    = max(70,  int(overlay_h * 0.12))
+            title_font = _load_font(title_sz)
+            sub_font   = _load_font(sub_sz)
+            _ov_dark   = sum(overlay_bg) < 384
+            txt_fill   = (255, 255, 255) if _ov_dark else (20, 20, 20)
+
+            def _draw_centered(text, font, y):
+                try:
+                    tw = int(draw_full.textlength(text, font=font))
+                except Exception:
+                    try:
+                        tw = int(font.getlength(text))
+                    except Exception:
+                        tw = 0
+                draw_full.text((max(0, (width_px - tw) // 2), y),
+                               text, fill=txt_fill, font=font)
+
+            if title:
+                _draw_centered(title,    title_font, map_h + int(overlay_h * 0.18))
+            if subtitle:
+                _draw_centered(subtitle, sub_font,   map_h + int(overlay_h * 0.55))
 
         # ──────────────────────────────────────────────────────────────────────
         # 4.  Serialise as print-ready CMYK PDF at 300 DPI
