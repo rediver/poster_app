@@ -162,24 +162,11 @@ def compat_strava_callback():
         return f"Token exchange failed: {e}", 400
 
     html = f"""
-<!doctype html>
-<html><body>
-<h2>Strava Authorization Successful!</h2>
-<p>Welcome {athlete_name}! This window should close automatically.</p>
+<!doctype html><html><head><title>Auth</title></head><body>
 <script>
   (function() {{
-    var msg = {{ 
-      type: 'strava_oauth', 
-      access_token: '{access_token}', 
-      expires_at: 0, 
-      athlete: '{athlete_name.replace("'", "\\'")}'  
-    }};
-    if (window.opener) {{
-      window.opener.postMessage(msg, '*');
-      setTimeout(function() {{ window.close(); }}, 1500);
-    }} else {{
-      alert('Authorization successful! You can close this window.');
-    }}
+    var msg = {{ type: 'strava_oauth', access_token: '{access_token}', expires_at: 0, athlete: '{athlete_name.replace("'", "\\'")}'  }};
+    if (window.opener) {{ window.opener.postMessage(msg, '*'); window.close(); }}
   }})();
 </script>
 </body></html>
