@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 const SHOPIFY_VARIANT_ID = '53104872849750';
 import { logModule, useLogMount } from '../src/debug';
@@ -378,9 +379,14 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
                 <Button 
                   onClick={handleCheckout}
                   disabled={!isReviewed || submitting}
-                  className="flex-1 h-12 bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 h-12 bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
-                  {submitting ? 'Creating…' : 'Confirm'}
+                  <span className="inline-flex items-center justify-center gap-2">
+                    {submitting && (
+                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                    )}
+                    {submitting ? 'Creating…' : 'Confirm'}
+                  </span>
                 </Button>
               </div>
             </div>

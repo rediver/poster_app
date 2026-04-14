@@ -599,7 +599,8 @@ def save_poster_composed():
         width_px = int(payload.get('width_px') or 3508)
         height_px = int(payload.get('height_px') or 4961)
         line_color = payload.get('line_color') or '#ffeb3b'
-        line_width = int(payload.get('line_width') or 8)
+        _lw_raw = int(payload.get('line_width') or 0)
+        line_width = _lw_raw if _lw_raw > 0 else max(12, width_px // 150)
         style_id = payload.get('style_id') or 'mapbox/streets-v11'
         background_type = (payload.get('background_type') or 'map').lower()
         background_image_data = payload.get('background_image_data')
@@ -627,6 +628,35 @@ def save_poster_composed():
         min_lon_p = min_lon - lon_pad
         max_lon_p = max_lon + lon_pad
 
+        # ── WebMercator helpers (shared by tile fetching AND route projection) ──
+        def _merc_y(lat_deg):
+            return math.log(math.tan(math.pi / 4 + math.radians(lat_deg) / 2))
+
+        def _px_to_latlon(px, py, ctr_lat, ctr_lon, zm, W, H):
+            """Pixel → (lat, lon) for a canvas with given centre and zoom."""
+            sc = 256.0 * (2.0 ** zm)
+            cx = (ctr_lon + 180.0) / 360.0 * sc
+            cy = (1.0 - _merc_y(ctr_lat) / math.pi) / 2.0 * sc
+            lon_ = (cx + px - W / 2.0) / sc * 360.0 - 180.0
+            y_m = (1.0 - 2.0 * (cy + py - H / 2.0) / sc) * math.pi
+            lat_ = math.degrees(2.0 * math.atan(math.exp(y_m)) - math.pi / 2.0)
+            return lat_, lon_
+
+        center_lat_r = (min_lat + max_lat) / 2.0
+        center_lon_r = (min_lon + max_lon) / 2.0
+        _lat_span = (_merc_y(max_lat) - _merc_y(min_lat)) if max_lat > min_lat else 0.001
+        _lon_span = (max_lon - min_lon) if max_lon > min_lon else 0.001
+        # Bottom 22 % of canvas = data overlay; top 78 % = map section
+        overlay_h = int(height_px * 0.22)
+        map_h     = height_px - overlay_h   # e.g. 3869 px at A3 4961
+
+        # Zoom: fit route to MAP SECTION (not full canvas), 90 % fill
+        # so it matches the editor's Mapbox "auto" + padding=40 behaviour
+        _PAD = 0.90
+        _zw = math.log2(width_px * _PAD / (256.0 * (_lon_span / 360.0)))
+        _zh = math.log2(map_h    * _PAD / (256.0 * (_lat_span / math.pi)))
+        map_zoom = max(0.0, min(20.0, min(_zw, _zh)))
+
         # If title/subtitle not provided, derive from activity details
         def _fmt_hms(seconds: int) -> str:
             h = seconds // 3600
@@ -648,109 +678,158 @@ def save_poster_composed():
         except Exception as _e:
             logger.warning(f"Could not derive subtitle from activity details: {_e}")
 
-        # Create background similar to export
+        # ──────────────────────────────────────────────────────────────────────
+        # Helpers
+        # ──────────────────────────────────────────────────────────────────────
         def hex_to_rgb(h):
             h = h.lstrip('#')
             return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
 
-        bg_img = Image.new('RGB', (width_px, height_px), color=(17, 17, 17))
+        def _load_font(size):
+            for fp in [
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+                '/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf',
+                '/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf',
+                'Arial.ttf',
+            ]:
+                try:
+                    return ImageFont.truetype(fp, size=size)
+                except Exception:
+                    pass
+            try:
+                return ImageFont.load_default(size=size)
+            except Exception:
+                return ImageFont.load_default()
+
+        # ──────────────────────────────────────────────────────────────────────
+        # 1.  Build MAP SECTION image  (width_px × map_h)
+        #     Tiles use centre+zoom Mercator – same projection as to_xy()
+        # ──────────────────────────────────────────────────────────────────────
         if background_type == 'solid':
-            bg_img = Image.new('RGB', (width_px, height_px), color=hex_to_rgb(solid_color))
+            map_img = Image.new('RGB', (width_px, map_h),
+                                color=hex_to_rgb(solid_color))
         elif background_type == 'image' and background_image_data:
-            header, b64data = background_image_data.split(',', 1)
-            img_bytes = base64.b64decode(b64data)
-            src_img = Image.open(io.BytesIO(img_bytes)).convert('RGB')
-            bg_img = src_img.resize((width_px, height_px), resample=Image.LANCZOS)
+            _hdr, b64d = background_image_data.split(',', 1)
+            src_img = Image.open(io.BytesIO(base64.b64decode(b64d))).convert('RGB')
+            map_img = src_img.resize((width_px, map_h), resample=Image.LANCZOS)
         else:
-            style_path = style_id if style_id.startswith('mapbox/') or '/' in style_id else f"mapbox/{style_id}"
+            # Mapbox: tile grid with centre+zoom so every tile aligns with to_xy()
+            style_path = style_id if '/' in style_id else f"mapbox/{style_id}"
             MAX_REQ = 1280
-            EFFECTIVE_MAX = 2560
-            cols = max(1, math.ceil(width_px / EFFECTIVE_MAX))
-            rows = max(1, math.ceil(height_px / EFFECTIVE_MAX))
+            cols = max(1, math.ceil(width_px / (MAX_REQ * 2)))
+            rows = max(1, math.ceil(map_h    / (MAX_REQ * 2)))
             seg_w = [width_px // cols] * cols
-            for i in range(width_px % cols):
-                seg_w[i] += 1
-            seg_h = [height_px // rows] * rows
-            for j in range(height_px % rows):
-                seg_h[j] += 1
-            def tile_bbox(ci, rj):
-                x0 = sum(seg_w[:ci]); x1 = x0 + seg_w[ci]
-                y0 = sum(seg_h[:rj]); y1 = y0 + seg_h[rj]
-                fx0, fx1 = x0 / width_px, x1 / width_px
-                fy0, fy1 = y0 / height_px, y1 / height_px
-                lon0 = min_lon_p + (max_lon_p - min_lon_p) * fx0
-                lon1 = min_lon_p + (max_lon_p - min_lon_p) * fx1
-                lat1 = max_lat_p - (max_lat_p - min_lat_p) * fy0
-                lat0 = max_lat_p - (max_lat_p - min_lat_p) * fy1
-                return lon0, lat0, lon1, lat1
-            bg_img = Image.new('RGB', (width_px, height_px), color=(255, 255, 255))
-            y_cursor = 0
+            for i in range(width_px % cols): seg_w[i] += 1
+            seg_h = [map_h // rows] * rows
+            for j in range(map_h % rows): seg_h[j] += 1
+            map_img = Image.new('RGB', (width_px, map_h), color=(255, 255, 255))
+            y_off = 0
             for r in range(rows):
-                x_cursor = 0
+                x_off = 0
                 for c in range(cols):
                     tw, th = seg_w[c], seg_h[r]
+                    # tile centre in lat/lon, referenced to map section dimensions
+                    tc_lat, tc_lon = _px_to_latlon(
+                        x_off + tw / 2.0, y_off + th / 2.0,
+                        center_lat_r, center_lon_r, map_zoom, width_px, map_h,
+                    )
                     req_w = min(MAX_REQ, math.ceil(tw / 2))
                     req_h = min(MAX_REQ, math.ceil(th / 2))
-                    size_suffix = f"{req_w}x{req_h}@2x"
-                    lon0, lat0, lon1, lat1 = tile_bbox(c, r)
-                    static_url = (
+                    tile_url = (
                         f"https://api.mapbox.com/styles/v1/{style_path}/static/"
-                        f"{lon0},{lat0},{lon1},{lat1}/"
-                        f"{size_suffix}?access_token={MAPBOX_ACCESS_TOKEN}"
+                        f"{tc_lon:.6f},{tc_lat:.6f},{map_zoom:.4f},0,0/"
+                        f"{req_w}x{req_h}@2x"
+                        f"?access_token={MAPBOX_ACCESS_TOKEN}&logo=false&attribution=false"
                     )
-                    resp = requests.get(static_url)
-                    resp.raise_for_status()
+                    resp = requests.get(tile_url)
+                    if resp.status_code != 200:
+                        logger.error(f"Mapbox tile {r},{c} → {resp.status_code}: {resp.text[:200]}")
+                        return jsonify({"error": "Failed to fetch map tile"}), 502
                     tile_img = Image.open(io.BytesIO(resp.content)).convert('RGB')
                     if tile_img.size != (tw, th):
                         tile_img = tile_img.resize((tw, th), resample=Image.LANCZOS)
-                    bg_img.paste(tile_img, (x_cursor, y_cursor))
-                    x_cursor += tw
-                y_cursor += seg_h[r]
-        # Effects
-        if monochrome:
-            gray = ImageOps.grayscale(bg_img)
-            bg_img = ImageOps.colorize(gray, black=(0,0,0), white=hex_to_rgb(mono_color))
-        if blur_radius and blur_radius > 0:
-            bg_img = bg_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+                    map_img.paste(tile_img, (x_off, y_off))
+                    x_off += tw
+                y_off += seg_h[r]
 
-        # Draw route
-        def hex_to_rgb2(h):
-            h = h.lstrip('#')
-            return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
-        route_color = hex_to_rgb2(line_color)
-        draw = ImageDraw.Draw(bg_img)
+        # Optional effects on map section
+        if monochrome:
+            gray = ImageOps.grayscale(map_img)
+            map_img = ImageOps.colorize(gray, black=(0, 0, 0),
+                                        white=hex_to_rgb(mono_color))
+        if blur_radius and blur_radius > 0:
+            map_img = map_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+
+        # ──────────────────────────────────────────────────────────────────────
+        # 2.  Draw route on map section
+        #     to_xy() references map_h/2 so route centres in the map section
+        # ──────────────────────────────────────────────────────────────────────
+        route_color = hex_to_rgb(line_color)
+        draw_map = ImageDraw.Draw(map_img)
+
         def to_xy(lat, lon):
-            x = (lon - min_lon_p) / (max_lon_p - min_lon_p) * (width_px - 1)
-            y = (max_lat_p - lat) / (max_lat_p - min_lat_p) * (height_px - 1)
-            return (int(x), int(y))
+            sc = 256.0 * (2.0 ** map_zoom)
+            cx = (center_lon_r + 180.0) / 360.0 * sc
+            cy = (1.0 - _merc_y(center_lat_r) / math.pi) / 2.0 * sc
+            px_ = (lon + 180.0) / 360.0 * sc
+            py_ = (1.0 - _merc_y(lat) / math.pi) / 2.0 * sc
+            return int(px_ - cx + width_px / 2), int(py_ - cy + map_h / 2)
+
         pts = [to_xy(lat, lon) for lat, lon in latlng]
         if len(pts) >= 2:
-            draw.line(pts, fill=route_color, width=line_width, joint="curve")
-        # Title/subtitle/desc
-        try:
-            title_font = ImageFont.truetype("Arial.ttf", size=64)
-            subtitle_font = ImageFont.truetype("Arial.ttf", size=36)
-            desc_font = ImageFont.truetype("Arial.ttf", size=28)
-        except Exception:
-            title_font = ImageFont.load_default(); subtitle_font = ImageFont.load_default(); desc_font = ImageFont.load_default()
-        margin = 40
+            draw_map.line(pts, fill=route_color, width=line_width, joint="curve")
+
+        # ──────────────────────────────────────────────────────────────────────
+        # 3.  Assemble full canvas: map section (top) + data overlay (bottom)
+        #     Overlay mirrors the editor’s DataOverlay component
+        # ──────────────────────────────────────────────────────────────────────
+        # Overlay background: black for map/image layouts, solid_color otherwise
+        overlay_bg = hex_to_rgb(solid_color) if background_type == 'solid' else (0, 0, 0)
+        full_img   = Image.new('RGB', (width_px, height_px), color=overlay_bg)
+        full_img.paste(map_img, (0, 0))   # map section at top
+
+        draw_full = ImageDraw.Draw(full_img)
+
+        # Font sizes proportional to overlay height
+        title_sz = max(130, int(overlay_h * 0.22))   # ~240 px at A3
+        sub_sz   = max(70,  int(overlay_h * 0.12))   # ~130 px
+
+        title_font = _load_font(title_sz)
+        sub_font   = _load_font(sub_sz)
+
+        # Text colour: white on dark overlay, dark on light
+        _ov_is_dark = sum(overlay_bg) < 384
+        txt_fill = (255, 255, 255) if _ov_is_dark else (20, 20, 20)
+
+        def _draw_centered(text, font, y):
+            try:
+                tw = int(draw_full.textlength(text, font=font))
+            except Exception:
+                try:
+                    tw = int(font.getlength(text))
+                except Exception:
+                    tw = 0
+            x = max(0, (width_px - tw) // 2)
+            draw_full.text((x, y), text, fill=txt_fill, font=font)
+
         if title:
-            draw.text((margin, margin), title, fill=(0,0,0), font=title_font)
+            _draw_centered(title,    title_font, map_h + int(overlay_h * 0.18))
         if subtitle:
-            draw.text((margin, margin+90), subtitle, fill=(0,0,0), font=subtitle_font)
-        if description:
-            desc_y = height_px - margin - 40
-            draw.text((margin, desc_y), description, fill=(0,0,0), font=desc_font)
+            _draw_centered(subtitle, sub_font,   map_h + int(overlay_h * 0.55))
 
-        # Save preview PNG to S3
+        # ──────────────────────────────────────────────────────────────────────
+        # 4.  Serialise as print-ready CMYK PDF at 300 DPI
+        # ──────────────────────────────────────────────────────────────────────
         timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
-        athlete = session.get('athlete') or {}
-        username = athlete.get('username', 'unknown')
-        user_id = str(athlete.get('id', ''))
-        filename = secure_filename(f"poster_{username}_{timestamp}.png")
+        athlete   = session.get('athlete') or {}
+        username  = athlete.get('username', 'unknown')
+        user_id   = str(athlete.get('id', ''))
+        filename  = secure_filename(f"poster_{username}_{timestamp}.pdf")
 
+        cmyk_img = full_img.convert('CMYK')
         img_io = io.BytesIO()
-        bg_img.save(img_io, format='PNG', optimize=True)
+        cmyk_img.save(img_io, format='PDF', resolution=300.0)
         img_io.seek(0)
 
         try:
@@ -762,8 +841,24 @@ def save_poster_composed():
                 Bucket=bucket_name,
                 Key=s3_key,
                 Body=img_io,
-                ContentType='image/png',
-                ACL='public-read'
+                ContentType='application/pdf',
+                ACL='public-read',
+                Metadata={
+                    'activity-id':     str(activity_id),
+                    'title':           str(title)[:256],
+                    'background-type': str(background_type),
+                    'line-color':      str(line_color),
+                    'solid-color':     str(solid_color),
+                    'style-id':        str(style_id),
+                    'line-width':      str(line_width),
+                    'monochrome':      str(monochrome).lower(),
+                    'blur-radius':     str(blur_radius),
+                    'mono-color':      str(mono_color),
+                    'width-px':        str(width_px),
+                    'height-px':       str(height_px),
+                    'username':        str(username),
+                    'user-id':         str(user_id),
+                },
             )
             public_url = f"https://{bucket_name}.s3.{aws_region}.amazonaws.com/{s3_key}"
         except Exception as e:
