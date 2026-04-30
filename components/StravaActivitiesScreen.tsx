@@ -219,16 +219,24 @@ export function StravaActivitiesScreen({ onActivitySelected, posterConfig }: Str
     if (!selectedPolyline || !mapboxToken) return '';
     const w = Math.min(1280, Math.round(previewWidth));
     const h = Math.min(1280, Math.round(previewHeight));
-    // Decode → smooth → re-encode for softer curves
+    // Decode → smooth → re-encode for softer curves.
+    // Route is rendered as 3 stacked path overlays (glow + dark border + main),
+    // so polyline is repeated 3× in the URL — keep it tight.
     let pts = decodePolyline(selectedPolyline);
     pts = smoothPoints(pts, 2);
-    pts = downsamplePoints(pts, 350);
+    pts = downsamplePoints(pts, 240);
     const color = posterConfig.accentColor.replace('#', '');
     const encodedPoly = encodeURIComponent(encodePolyline(pts));
+    // Layered route: soft outer glow → dark stroke for contrast → bright main stroke.
+    const overlay = [
+      `path-10+${color}-0.18(${encodedPoly})`,
+      `path-6+050505(${encodedPoly})`,
+      `path-4+${color}(${encodedPoly})`,
+    ].join(',');
     // "auto" lets Mapbox find the best center+zoom to fit the path
     return (
       `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/` +
-      `path-3+${color}(${encodedPoly})/auto/${w}x${h}@2x` +
+      `${overlay}/auto/${w}x${h}@2x` +
       `?access_token=${mapboxToken}&logo=false&attribution=false&padding=40`
     );
   }, [selectedPolyline, mapboxToken, previewWidth, previewHeight, posterConfig.accentColor]);
@@ -276,8 +284,15 @@ const getActivityColor = (type: string) => {
         <div ref={previewContainerRef} className="flex-1 h-full bg-white border-r border-gray-200 flex items-center justify-center p-8 overflow-hidden">
           <div className="relative">
             <div 
-              className="relative bg-white border-2 border-gray-300 shadow-xl p-6 flex flex-col overflow-hidden"
-              style={{ width: `${previewWidth}px`, height: `${previewHeight}px`, backgroundColor: posterConfig.backgroundColor }}
+              className="relative shadow-2xl p-6 flex flex-col overflow-hidden"
+              style={{
+                width: `${previewWidth}px`,
+                height: `${previewHeight}px`,
+                backgroundColor: posterConfig.backgroundColor,
+                borderRadius: '14px',
+                border: '1px solid rgba(255,255,255,0.06)',
+                boxShadow: '0 30px 80px -20px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.4)',
+              }}
             >
               {/* Map + route rendered by Mapbox as single image */}
               {mapWithRouteUrl ? (

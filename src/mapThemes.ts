@@ -16,6 +16,21 @@ export interface MapTheme {
 
 export const mapThemes: MapTheme[] = [
   {
+    name: "Strava Dark",
+    description: "Premium charcoal map with vivid Strava orange route accent",
+    bg: "#0A0A0A",
+    text: "#F4EFE6",
+    gradient_color: "#0A0A0A",
+    water: "#10161C",
+    parks: "#0E1410",
+    road_motorway: "#2A2A2A",
+    road_primary: "#FC4C02",
+    road_secondary: "#1F1F1F",
+    road_tertiary: "#181818",
+    road_residential: "#141414",
+    road_default: "#FC4C02",
+  },
+  {
     name: "Forest",
     description: "Deep greens and sage tones - organic botanical aesthetic",
     bg: "#F0F4F0",

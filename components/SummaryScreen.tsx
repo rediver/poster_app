@@ -189,24 +189,34 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
   const summaryMapUrl = useMemo(() => {
     if (config.layout !== 'map' || trackPoints.length < 2 || !mapboxToken) return '';
 
-    // Downsample → smooth → re-downsample to keep URL under Mapbox limit
+    // Downsample → smooth → re-downsample to keep URL under Mapbox limit.
+    // Route is rendered as 3 stacked path overlays (glow + dark border + main),
+    // so polyline is repeated 3× in the URL — keep it tight.
     let pts = downsamplePoints(trackPoints, 200);
     pts = smoothPoints(pts, 2);
-    pts = downsamplePoints(pts, 350);
+    pts = downsamplePoints(pts, 240);
 
     const color = config.accentColor.replace('#', '');
     const encodedPoly = encodeURIComponent(encodePolyline(pts));
     const w = Math.min(1280, Math.round(previewWidth));
     const h = Math.min(1280, Math.round(mapSectionHeight));
 
-    const isDark =
-      config.backgroundColor === '#000000' ||
-      config.backgroundColor.toLowerCase() === '#111111';
+    const bg = config.backgroundColor.toLowerCase();
+    const isDark = bg === '#000000' || bg === '#111111' || bg === '#0a0a0a';
     const styleId = isDark ? 'dark-v11' : 'light-v11';
+
+    // Layered route: soft outer glow → dark stroke for contrast → bright main stroke.
+    const overlay = isDark
+      ? [
+          `path-10+${color}-0.18(${encodedPoly})`,
+          `path-6+050505(${encodedPoly})`,
+          `path-4+${color}(${encodedPoly})`,
+        ].join(',')
+      : `path-3+${color}(${encodedPoly})`;
 
     const url =
       `https://api.mapbox.com/styles/v1/mapbox/${styleId}/static/` +
-      `path-3+${color}(${encodedPoly})/auto/${w}x${h}@2x` +
+      `${overlay}/auto/${w}x${h}@2x` +
       `?access_token=${mapboxToken}&logo=false&attribution=false&padding=40`;
 
     console.log('[summaryMapUrl]', { length: url.length, w, h, pts: pts.length, polyLen: encodedPoly.length });
@@ -326,13 +336,16 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
           ) : (
           <div className="relative">
             <div 
-              className="relative border-2 border-gray-300 shadow-2xl overflow-hidden"
+              className="relative shadow-2xl overflow-hidden"
               style={{ 
-                backgroundColor: config.layout === 'map' ? '#ffffff' : config.backgroundColor,
+                backgroundColor: config.backgroundColor,
                 width: `${previewWidth}px`,
                 height: `${previewHeight}px`,
                 display: 'flex',
                 flexDirection: 'column',
+                borderRadius: '14px',
+                border: '1px solid rgba(255,255,255,0.06)',
+                boxShadow: '0 30px 80px -20px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.4)',
               }}
             >
               {/* Map section */}
@@ -378,6 +391,7 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
                   fontFamily={config.fontFamily}
                   width={previewWidth}
                   height={overlayHeight}
+                  accentColor={config.accentColor}
                 />
               )}
             </div>
