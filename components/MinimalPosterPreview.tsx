@@ -74,19 +74,26 @@ export function MinimalPosterPreview({
   // Inset border: ~3.8 % of width (≈ 22 px at A3 landscape ~594 px wide)
   const bi = Math.max(12, Math.round(width * 0.038));
 
-  // Route container: 60 % wide, 54 % tall, positioned 7 % from top.
-  // TrackSvg fills this container with a uniform scale + small padding.
-  const routeW   = Math.round(width  * 0.60);
-  const routeH   = Math.round(height * 0.54);
+  // Route container – portrait gets a 6 % boost so the route feels more present
+  // in the taller, narrower canvas. Landscape proportions stay as refined before.
+  const isPortrait = height > width;
+  const routeW = Math.round(width  * (isPortrait ? 0.66 : 0.62)); // portrait +6 %
+  const routeH = Math.round(height * (isPortrait ? 0.58 : 0.55)); // portrait +5.5 %
   const routeTop = Math.round(height * 0.07);
 
-  // Stroke: medium-thin, ~0.9 % of width (≈ 5–6 px at preview scale)
-  const strokeW = Math.max(2, Math.round(width * 0.009));
+  // Stroke – landscape gets a further ~12 % reduction so the line reads
+  // more elegant at wider canvas width. Portrait keeps the existing value.
+  // Fractional stroke widths are fine in SVG (no rounding needed here).
+  const strokeW = Math.max(1.5, width * (isPortrait ? 0.0078 : 0.0069));
 
-  /* ── typography sizes (proportional to width) ────────────────── */
-  const titlePx  = Math.max(28, Math.round(width * 0.068)); // ≈ 40 px
-  const datePx   = Math.max(9,  Math.round(width * 0.022)); // ≈ 13 px
-  const statsPx  = Math.max(10, Math.round(width * 0.026)); // ≈ 15 px
+  /* ── typography sizes (proportional to width) ──────────────── */
+  // Landscape values are slightly smaller so the wider, shallower composition
+  // feels lighter. Portrait values are unchanged.
+  const titlePx    = Math.max(22, Math.round(width * (isPortrait ? 0.060 : 0.055)));  // LS −9 %
+  const datePx     = Math.max(8,  Math.round(width * (isPortrait ? 0.022 : 0.021)));  // LS −4 %
+  const statsPx    = Math.max(9,  Math.round(width * (isPortrait ? 0.026 : 0.024)));  // LS −6 %
+  const titleWeight = isPortrait ? 510 : 470;         // LS slightly lighter
+  const dateLSpacing = isPortrait ? '0.16em' : '0.12em'; // LS less stretched
   const sepH     = Math.round(statsPx * 1.35);               // separator height
   const statGap  = Math.max(8,  Math.round(width * 0.020));  // gap between items
 
@@ -191,8 +198,8 @@ export function MinimalPosterPreview({
         <div
           style={{
             fontSize: titlePx,
-            fontWeight: 560,          // Inter variable → precise between 500 and 600
-            letterSpacing: '-0.025em',
+            fontWeight: titleWeight,
+            letterSpacing: '-0.030em',
             lineHeight: 1.05,
             color: '#242424',
           }}
@@ -207,7 +214,7 @@ export function MinimalPosterPreview({
               marginTop: dateMarginTop,
               fontSize: datePx,
               fontWeight: 400,
-              letterSpacing: '0.22em',
+              letterSpacing: dateLSpacing,
               color: '#77736D',
               textTransform: 'uppercase',
             }}
