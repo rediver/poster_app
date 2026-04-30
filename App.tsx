@@ -9,6 +9,7 @@ import { encodePolyline, smoothPoints, downsamplePoints } from './components/Rou
 import { MapImage } from './components/MapImage';
 import { DataOverlay, OverlayData } from './components/DataOverlay';
 import { TrackSvg } from './components/TrackSvg';
+import { MinimalPosterPreview } from './components/MinimalPosterPreview';
 import { logModule, useLogMount, logInfo, DEBUG_LOAD } from './src/debug';
 logModule('App.tsx module');
 
@@ -374,19 +375,36 @@ const handleGpxImported = (points: LatLng[]) => {
               onBack={() => setConfig((prev) => ({ ...prev, layout: 'map' }))}
               inline
             />
+          ) : config.layout === 'minimal' ? (
+          /* ── Minimal: Scandinavian editorial ── */
+          <div className="relative">
+            <div className="shadow-2xl">
+              <MinimalPosterPreview
+                trackPoints={trackPoints}
+                title={config.title}
+                overlayData={config.overlayData}
+                accentColor={config.accentColor}
+                width={previewWidth}
+                height={previewHeight}
+              />
+            </div>
+            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs text-gray-500 bg-white px-2 py-1 rounded shadow">
+              {config.format} – {config.orientation}
+            </div>
+          </div>
           ) : (
+          /* ── Map layout ── */
           <div className="relative">
             <div 
               className="relative border-2 border-gray-300 shadow-xl overflow-hidden"
               style={{ 
-                backgroundColor: config.layout === 'map' ? '#ffffff' : config.backgroundColor,
+                backgroundColor: '#ffffff',
                 width: `${previewWidth}px`,
                 height: `${previewHeight}px`,
                 display: 'flex',
                 flexDirection: 'column',
               }}
             >
-              {/* Map section */}
               <div style={{
                 position: 'relative',
                 width: '100%',
@@ -401,34 +419,21 @@ const handleGpxImported = (points: LatLng[]) => {
                 ) : (
                   <div className="absolute inset-0 z-0 flex items-center justify-center">
                     <span className="text-xs text-gray-300">
-                      {config.layout === 'map'
-                        ? `No map URL (track: ${trackPoints.length} pts, token: ${mapboxToken ? 'yes' : 'NO'})`
-                        : ''}
+                      {`No map URL (track: ${trackPoints.length} pts, token: ${mapboxToken ? 'yes' : 'NO'})`}
                     </span>
-                  </div>
-                )}
-                {config.layout === 'minimal' && smoothedTrack.length >= 2 && (
-                  <div className="absolute inset-0 z-0 flex items-center justify-center">
-                    <TrackSvg
-                      points={smoothedTrack}
-                      width={previewWidth}
-                      height={trackAreaHeight}
-                      strokeColor={config.accentColor}
-                      strokeWidth={Math.max(2, Math.round(previewWidth / 150))}
-                    />
                   </div>
                 )}
                 {!config.showDataOverlay && (
                   <div className={`relative z-20 h-full p-6 flex flex-col ${getLayoutClasses()}`}>
                     <div className="flex-1 flex flex-col justify-end">
-                      <h1 
+                      <h1
                         className="mb-2"
-                        style={{ 
+                        style={{
                           color: config.accentColor,
                           fontFamily: config.fontFamily,
                           fontSize: `${fontSizes.title}px`,
                           fontWeight: '700',
-                          lineHeight: '1.1'
+                          lineHeight: '1.1',
                         }}
                       >
                         {config.title}
@@ -437,8 +442,6 @@ const handleGpxImported = (points: LatLng[]) => {
                   </div>
                 )}
               </div>
-
-              {/* Data overlay */}
               {config.showDataOverlay && (
                 <DataOverlay
                   title={config.title}
@@ -451,8 +454,6 @@ const handleGpxImported = (points: LatLng[]) => {
                 />
               )}
             </div>
-            
-            {/* Format and orientation indicator */}
             <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs text-gray-500 bg-white px-2 py-1 rounded shadow">
               {config.format} - {config.orientation}
             </div>

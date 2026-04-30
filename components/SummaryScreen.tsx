@@ -10,6 +10,7 @@ import { encodePolyline, smoothPoints, downsamplePoints } from './RoutePreview';
 import { MapImage } from './MapImage';
 import { DataOverlay } from './DataOverlay';
 import { TrackSvg } from './TrackSvg';
+import { MinimalPosterPreview } from './MinimalPosterPreview';
 
 interface PosterConfig {
   title: string;
@@ -261,7 +262,24 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
       <div className="flex min-h-screen">
         {/* Left side - Large Poster Preview */}
         <div ref={previewContainerRef} className="flex-1 bg-white border-r border-gray-200 flex items-center justify-center p-12">
-          {config.layout === 'photo' && photoUrl ? (
+          {config.layout === 'minimal' ? (
+            /* ── Minimal: Scandinavian editorial ── */
+            <div className="relative">
+              <div className="shadow-2xl">
+                <MinimalPosterPreview
+                  trackPoints={trackPoints}
+                  title={config.title}
+                  overlayData={config.overlayData}
+                  accentColor={config.accentColor}
+                  width={previewWidth}
+                  height={previewHeight}
+                />
+              </div>
+              <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 text-sm text-gray-500 bg-white px-3 py-1 rounded shadow">
+                {config.format} – {config.orientation}
+              </div>
+            </div>
+          ) : config.layout === 'photo' && photoUrl ? (
             /* Photo poster composite */
             <div className="relative overflow-hidden rounded-lg shadow-2xl" style={{ width: previewWidth, height: previewHeight }}>
               <img src={photoUrl} alt="Poster photo" className="absolute inset-0 w-full h-full object-cover" style={{ zIndex: 0 }} />
@@ -329,17 +347,6 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
                     src={summaryMapUrl}
                     className="absolute inset-0 w-full h-full object-cover z-0"
                   />
-                )}
-                {config.layout === 'minimal' && smoothedTrack.length >= 2 && (
-                  <div className="absolute inset-0 z-0 flex items-center justify-center">
-                    <TrackSvg
-                      points={smoothedTrack}
-                      width={previewWidth}
-                      height={trackAreaHeight}
-                      strokeColor={config.accentColor}
-                      strokeWidth={Math.max(2, Math.round(previewWidth / 150))}
-                    />
-                  </div>
                 )}
                 {!config.showDataOverlay && (
                   <div className={`relative z-20 h-full p-8 flex flex-col ${getLayoutClasses()}`}>
