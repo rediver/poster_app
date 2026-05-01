@@ -11,6 +11,7 @@ import { Separator } from './ui/separator';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 import { mapThemes } from '../src/mapThemes';
 import { Map, Image, Minus } from 'lucide-react';
+import { Slider } from './ui/slider';
 
 interface PosterConfig {
   title: string;
@@ -31,6 +32,11 @@ interface PosterConfig {
     date?: string;
   };
   visibleStatKeys?: string[];
+  // Photo-mode editorial settings
+  photoTitleFont?: string;
+  photoBrightness?: number;
+  photoContrast?: number;
+  photoSaturation?: number;
 }
 
 interface PosterEditorProps {
@@ -53,6 +59,12 @@ export function PosterEditor({ config, onConfigChange, onSummary, photoUrl, onCl
     { value: 'Inter, sans-serif', label: 'Inter' },
     { value: 'Playfair Display, serif', label: 'Playfair Display' },
     { value: 'Roboto, sans-serif', label: 'Roboto' },
+  ];
+
+  const photoTitleFontOptions = [
+    { value: "'Cormorant Garamond', serif", label: 'Cormorant Garamond' },
+    { value: "'Playfair Display', serif", label: 'Playfair Display' },
+    { value: 'Georgia, serif', label: 'Georgia' },
   ];
 
   const colorPresets = [
@@ -288,27 +300,97 @@ export function PosterEditor({ config, onConfigChange, onSummary, photoUrl, onCl
           <Separator />
 
           {/* Typography */}
-          <div className="space-y-2">
-            <Label>Font Family</Label>
-            <Select
-              value={config.fontFamily}
-              onValueChange={(value) => updateConfig({ fontFamily: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {fontOptions.map((font) => (
-                  <SelectItem key={font.value} value={font.value}>
-                    {font.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {config.layout === 'photo' ? (
+            <div className="space-y-2">
+              <Label>Title Font</Label>
+              <Select
+                value={config.photoTitleFont || "'Cormorant Garamond', serif"}
+                onValueChange={(value) => updateConfig({ photoTitleFont: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {photoTitleFontOptions.map((font) => (
+                    <SelectItem key={font.value} value={font.value}>
+                      <span style={{ fontFamily: font.value }}>{font.label}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Font Family</Label>
+              <Select
+                value={config.fontFamily}
+                onValueChange={(value) => updateConfig({ fontFamily: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {fontOptions.map((font) => (
+                    <SelectItem key={font.value} value={font.value}>
+                      {font.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <Separator />
 
+          {/* Photo Treatment (photo layout only) */}
+          {config.layout === 'photo' && (
+            <div className="space-y-4">
+              <Label className="text-sm font-medium">Photo Treatment</Label>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex justify-between">
+                    <Label className="text-xs text-muted-foreground">Brightness</Label>
+                    <span className="text-xs text-muted-foreground tabular-nums">{(config.photoBrightness ?? 0.87).toFixed(2)}</span>
+                  </div>
+                  <Slider
+                    min={0.70}
+                    max={1.00}
+                    step={0.01}
+                    value={[config.photoBrightness ?? 0.87]}
+                    onValueChange={([v]) => updateConfig({ photoBrightness: v })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between">
+                    <Label className="text-xs text-muted-foreground">Contrast</Label>
+                    <span className="text-xs text-muted-foreground tabular-nums">{(config.photoContrast ?? 1.10).toFixed(2)}</span>
+                  </div>
+                  <Slider
+                    min={1.00}
+                    max={1.20}
+                    step={0.01}
+                    value={[config.photoContrast ?? 1.10]}
+                    onValueChange={([v]) => updateConfig({ photoContrast: v })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between">
+                    <Label className="text-xs text-muted-foreground">Saturation</Label>
+                    <span className="text-xs text-muted-foreground tabular-nums">{(config.photoSaturation ?? 0.83).toFixed(2)}</span>
+                  </div>
+                  <Slider
+                    min={0.60}
+                    max={1.00}
+                    step={0.01}
+                    value={[config.photoSaturation ?? 0.83]}
+                    onValueChange={([v]) => updateConfig({ photoSaturation: v })}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <Separator />
 
           {/* Colors */}
           <div className="space-y-4">

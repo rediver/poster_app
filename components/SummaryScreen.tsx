@@ -11,6 +11,7 @@ import { MapImage } from './MapImage';
 import { DataOverlay } from './DataOverlay';
 import { TrackSvg } from './TrackSvg';
 import { MinimalPosterPreview } from './MinimalPosterPreview';
+import { PhotoPosterPreview } from './PhotoPosterPreview';
 
 interface PosterConfig {
   title: string;
@@ -31,6 +32,10 @@ interface PosterConfig {
     elevation?: string;
     date?: string;
   };
+  photoTitleFont?: string;
+  photoBrightness?: number;
+  photoContrast?: number;
+  photoSaturation?: number;
 }
 
 type LatLng = [number, number];
@@ -303,50 +308,26 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
               </div>
             </div>
           ) : config.layout === 'photo' && photoUrl ? (
-            /* Photo poster composite */
+            /* Photo poster composite — uses the same editorial component as the editor */
             <div style={{ width: previewWidth, height: previewHeight, backgroundColor: '#ffffff', padding: posterBorder, boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)' }}>
-            <div className="relative overflow-hidden" style={{ width: '100%', height: '100%' }}>
-              <img src={photoUrl} alt="Poster photo" className="absolute inset-0 w-full h-full object-cover" style={{ zIndex: 0 }} />
-              {smoothedTrack.length >= 2 && (
-                <div className="absolute inset-0" style={{ zIndex: 1, opacity: 0.8 }}>
-                  <TrackSvg
-                    points={smoothedTrack}
-                    width={innerWidth}
-                    height={innerHeight}
-                    strokeColor={config.accentColor}
-                    strokeWidth={Math.max(3, Math.round(innerWidth / 120))}
-                  />
-                </div>
-              )}
-              {photoStatsVisible && (() => {
-                const vs = photoVisibleStats || new Set(['distance', 'speed', 'date']);
-                const statDefs = [
-                  { key: 'distance', label: 'DISTANCE' },
-                  { key: 'elevation', label: 'ELEVATION' },
-                  { key: 'speed', label: 'PACE' },
-                  { key: 'date', label: 'DATE' },
-                  { key: 'duration', label: 'TIME' },
-                ] as const;
-                const active = statDefs.filter(s => vs.has(s.key) && (config.overlayData as any)[s.key]);
-                if (!active.length) return null;
-                const fs = Math.max(10, Math.round(innerWidth / 40));
-                const vs2 = Math.max(14, Math.round(innerWidth / 24));
-                const pad = Math.max(8, Math.round(innerHeight / 30));
-                return (
-                  <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center" style={{ zIndex: 2, background: 'linear-gradient(transparent, rgba(0,0,0,0.7))', padding: `${pad * 2}px ${pad}px ${pad}px` }}>
-                    {active.map((stat, i) => (
-                      <React.Fragment key={stat.key}>
-                        {i > 0 && <div className="mx-3" style={{ width: 1, height: vs2 + fs, backgroundColor: 'rgba(255,255,255,0.3)' }} />}
-                        <div className="flex flex-col items-center">
-                          <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: fs, fontWeight: 600, letterSpacing: '0.08em', fontFamily: 'monospace' }}>{stat.label}</span>
-                          <span style={{ color: '#fff', fontSize: vs2, fontWeight: 700, fontFamily: 'monospace', lineHeight: 1.3 }}>{(config.overlayData as any)[stat.key]}</span>
-                        </div>
-                      </React.Fragment>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
+              <PhotoPosterPreview
+                photoUrl={photoUrl}
+                title={config.title}
+                trackPoints={trackPoints}
+                overlayData={config.overlayData}
+                accentColor={config.accentColor}
+                labelColor={config.textColor}
+                valueColor={config.backgroundColor}
+                fontFamily={config.fontFamily}
+                width={innerWidth}
+                height={innerHeight}
+                statsVisible={photoStatsVisible}
+                visibleStats={photoVisibleStats || new Set(['distance', 'speed', 'date'])}
+                titleFont={config.photoTitleFont}
+                brightness={config.photoBrightness}
+                contrast={config.photoContrast}
+                saturation={config.photoSaturation}
+              />
             </div>
           ) : (
           <div className="relative">

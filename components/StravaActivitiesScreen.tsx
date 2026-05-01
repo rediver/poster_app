@@ -284,14 +284,20 @@ const getActivityColor = (type: string) => {
         <div ref={previewContainerRef} className="flex-1 h-full bg-white border-r border-gray-200 flex items-center justify-center p-8 overflow-hidden">
           <div className="relative">
             <div 
-              className="relative shadow-2xl p-6 flex flex-col overflow-hidden"
               style={{
                 width: `${previewWidth}px`,
                 height: `${previewHeight}px`,
+                backgroundColor: '#ffffff',
+                padding: Math.round(previewWidth * 0.04),
+                boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)',
+              }}
+            >
+            <div 
+              className="relative p-6 flex flex-col overflow-hidden"
+              style={{
+                width: '100%',
+                height: '100%',
                 backgroundColor: posterConfig.backgroundColor,
-                borderRadius: '14px',
-                border: '1px solid rgba(255,255,255,0.06)',
-                boxShadow: '0 30px 80px -20px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.4)',
               }}
             >
               {/* Map + route rendered by Mapbox as single image */}
@@ -333,6 +339,7 @@ const getActivityColor = (type: string) => {
                   {selectedActivityData ? `${selectedActivityData.distance} · ${selectedActivityData.duration}` : ''}
                 </p>
               </div>
+            </div>
             </div>
           </div>
         </div>

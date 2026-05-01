@@ -29,6 +29,11 @@ interface PosterConfig {
   showDataOverlay: boolean;
   overlayData: OverlayData;
   visibleStatKeys?: string[];
+  // Photo-mode editorial settings
+  photoTitleFont?: string;
+  photoBrightness?: number;
+  photoContrast?: number;
+  photoSaturation?: number;
 }
 
 type AppScreen = 'import' | 'strava-activities' | 'editor' | 'summary';
@@ -89,6 +94,10 @@ const [currentScreen, setCurrentScreen] = useState<AppScreen>('import');
     showDataOverlay: true,
     overlayData: {},
     visibleStatKeys: ['distance', 'speed', 'date'],
+    photoTitleFont: "'Cormorant Garamond', serif",
+    photoBrightness: 0.87,
+    photoContrast: 1.10,
+    photoSaturation: 0.83,
   });
 
   const handleStravaSelected = () => {
@@ -390,6 +399,10 @@ const handleGpxImported = (points: LatLng[]) => {
                 height={innerHeight}
                 statsVisible={config.showDataOverlay}
                 visibleStats={new Set(config.visibleStatKeys || [])}
+                titleFont={config.photoTitleFont}
+                brightness={config.photoBrightness}
+                contrast={config.photoContrast}
+                saturation={config.photoSaturation}
               />
             </div>
           ) : isPhotoLayout && !photoUrl ? (
