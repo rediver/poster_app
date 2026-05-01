@@ -34,6 +34,7 @@ interface PosterConfig {
   photoBrightness?: number;
   photoContrast?: number;
   photoSaturation?: number;
+  photoTrackThickness?: number;
 }
 
 type AppScreen = 'import' | 'strava-activities' | 'editor' | 'summary';
@@ -403,6 +404,7 @@ const handleGpxImported = (points: LatLng[]) => {
                 brightness={config.photoBrightness}
                 contrast={config.photoContrast}
                 saturation={config.photoSaturation}
+                trackThickness={config.photoTrackThickness}
               />
             </div>
           ) : isPhotoLayout && !photoUrl ? (

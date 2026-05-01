@@ -36,6 +36,7 @@ interface PosterConfig {
   photoBrightness?: number;
   photoContrast?: number;
   photoSaturation?: number;
+  photoTrackThickness?: number;
 }
 
 type LatLng = [number, number];
@@ -327,6 +328,7 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
                 brightness={config.photoBrightness}
                 contrast={config.photoContrast}
                 saturation={config.photoSaturation}
+                trackThickness={config.photoTrackThickness}
               />
             </div>
           ) : (

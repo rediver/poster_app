@@ -47,6 +47,8 @@ interface PhotoPosterPreviewProps {
   contrast?: number;
   /** Photo saturation (0.6–1.0). Default 0.83 */
   saturation?: number;
+  /** Track thickness multiplier (0.3–3.0). Default 1.0 */
+  trackThickness?: number;
 }
 
 /**
@@ -70,6 +72,7 @@ export function PhotoPosterPreview({
   brightness = 0.87,
   contrast = 1.10,
   saturation = 0.83,
+  trackThickness = 1.0,
 }: PhotoPosterPreviewProps) {
   const isPortrait = height > width;
 
@@ -101,7 +104,7 @@ export function PhotoPosterPreview({
   const metricGap = Math.max(12, Math.round(width * 0.04));
 
   // ── Track styling ──
-  const trackStrokeWidth = Math.max(1.2, width / 200);
+  const trackStrokeWidth = Math.max(0.5, (width / 200) * trackThickness);
   const trackOpacity = 0.55;
 
   // ── CSS filter for color treatment ──

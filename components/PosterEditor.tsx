@@ -37,6 +37,7 @@ interface PosterConfig {
   photoBrightness?: number;
   photoContrast?: number;
   photoSaturation?: number;
+  photoTrackThickness?: number;
 }
 
 interface PosterEditorProps {
@@ -384,6 +385,19 @@ export function PosterEditor({ config, onConfigChange, onSummary, photoUrl, onCl
                     step={0.01}
                     value={[config.photoSaturation ?? 0.83]}
                     onValueChange={([v]) => updateConfig({ photoSaturation: v })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between">
+                    <Label className="text-xs text-muted-foreground">Track Thickness</Label>
+                    <span className="text-xs text-muted-foreground tabular-nums">{(config.photoTrackThickness ?? 1.0).toFixed(1)}×</span>
+                  </div>
+                  <Slider
+                    min={0.3}
+                    max={3.0}
+                    step={0.1}
+                    value={[config.photoTrackThickness ?? 1.0]}
+                    onValueChange={([v]) => updateConfig({ photoTrackThickness: v })}
                   />
                 </div>
               </div>
