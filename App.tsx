@@ -222,6 +222,13 @@ const handleGpxImported = (points: LatLng[]) => {
   const overlayHeight = Math.round(previewHeight * overlayFraction);
   const mapSectionHeight = Math.round(previewHeight - overlayHeight);
 
+  // White poster border
+  const posterBorder = Math.round(previewWidth * 0.04);
+  const innerWidth = previewWidth - 2 * posterBorder;
+  const innerHeight = previewHeight - 2 * posterBorder;
+  const innerOverlayHeight = Math.round(innerHeight * overlayFraction);
+  const innerMapSectionHeight = Math.round(innerHeight - innerOverlayHeight);
+
   const alphabetText = "ABCD\nEFGHIJK\nLMNOP\nQRSTUV\nWXYZ";
 
   // Build Mapbox static URL with route drawn via path overlay (same as StravaActivitiesScreen)
@@ -363,20 +370,28 @@ const handleGpxImported = (points: LatLng[]) => {
         <div ref={previewContainerRef} className="flex-1 h-full bg-white border-r border-gray-200 flex items-center justify-center p-8 overflow-hidden">
           {isPhotoLayout && photoUrl ? (
             /* Photo poster composite preview */
-            <PhotoPosterPreview
-              photoUrl={photoUrl}
-              title={config.title}
-              trackPoints={trackPoints}
-              overlayData={config.overlayData}
-              accentColor={config.accentColor}
-              labelColor={config.textColor}
-              valueColor={config.backgroundColor}
-              fontFamily={config.fontFamily}
-              width={previewWidth}
-              height={previewHeight}
-              statsVisible={config.showDataOverlay}
-              visibleStats={new Set(config.visibleStatKeys || [])}
-            />
+            <div style={{
+              width: previewWidth,
+              height: previewHeight,
+              backgroundColor: '#ffffff',
+              padding: posterBorder,
+              boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)',
+            }}>
+              <PhotoPosterPreview
+                photoUrl={photoUrl}
+                title={config.title}
+                trackPoints={trackPoints}
+                overlayData={config.overlayData}
+                accentColor={config.accentColor}
+                labelColor={config.textColor}
+                valueColor={config.backgroundColor}
+                fontFamily={config.fontFamily}
+                width={innerWidth}
+                height={innerHeight}
+                statsVisible={config.showDataOverlay}
+                visibleStats={new Set(config.visibleStatKeys || [])}
+              />
+            </div>
           ) : isPhotoLayout && !photoUrl ? (
             /* Inline photo upload drop zone */
             <PhotoUploadStep
@@ -389,14 +404,20 @@ const handleGpxImported = (points: LatLng[]) => {
           ) : config.layout === 'minimal' ? (
           /* ── Minimal: Scandinavian editorial ── */
           <div className="relative">
-            <div className="shadow-2xl">
+            <div style={{
+              width: previewWidth,
+              height: previewHeight,
+              backgroundColor: '#ffffff',
+              padding: posterBorder,
+              boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)',
+            }}>
               <MinimalPosterPreview
                 trackPoints={trackPoints}
                 title={config.title}
                 overlayData={config.overlayData}
                 accentColor={config.accentColor}
-                width={previewWidth}
-                height={previewHeight}
+                width={innerWidth}
+                height={innerHeight}
               />
             </div>
             <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs text-gray-500 bg-white px-2 py-1 rounded shadow">
@@ -407,22 +428,28 @@ const handleGpxImported = (points: LatLng[]) => {
           /* ── Map layout ── */
           <div className="relative">
             <div 
-              className="relative shadow-2xl overflow-hidden"
               style={{ 
-                backgroundColor: config.backgroundColor,
+                backgroundColor: '#ffffff',
                 width: `${previewWidth}px`,
                 height: `${previewHeight}px`,
-                display: 'flex',
-                flexDirection: 'column',
-                borderRadius: '14px',
-                border: '1px solid rgba(255,255,255,0.06)',
-                boxShadow: '0 30px 80px -20px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.4)',
+                padding: posterBorder,
+                boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)',
               }}
             >
+              <div 
+                className="relative overflow-hidden"
+                style={{ 
+                  backgroundColor: config.backgroundColor,
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
               <div style={{
                 position: 'relative',
                 width: '100%',
-                height: config.showDataOverlay ? `${mapSectionHeight}px` : '100%',
+                height: config.showDataOverlay ? `${innerMapSectionHeight}px` : '100%',
                 overflow: 'hidden',
               }}>
                 {editorMapUrl ? (
@@ -463,11 +490,12 @@ const handleGpxImported = (points: LatLng[]) => {
                   backgroundColor={config.backgroundColor}
                   textColor={config.textColor}
                   fontFamily={config.fontFamily}
-                  width={previewWidth}
-                  height={overlayHeight}
+                  width={innerWidth}
+                  height={innerOverlayHeight}
                   accentColor={config.accentColor}
                 />
               )}
+              </div>
             </div>
             <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs text-gray-500 bg-white px-2 py-1 rounded shadow">
               {config.format} - {config.orientation}

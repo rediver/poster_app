@@ -233,6 +233,13 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
 
   const trackAreaHeight = config.showDataOverlay ? mapSectionHeight : previewHeight;
 
+  // White poster border
+  const posterBorder = Math.round(previewWidth * 0.04);
+  const innerWidth = previewWidth - 2 * posterBorder;
+  const innerHeight = previewHeight - 2 * posterBorder;
+  const innerOverlayHeight = Math.round(innerHeight * overlayFraction);
+  const innerMapSectionHeight = Math.round(innerHeight - innerOverlayHeight);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ── Submission overlay ─────────────────────────────────────── */}
@@ -275,14 +282,20 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
           {config.layout === 'minimal' ? (
             /* ── Minimal: Scandinavian editorial ── */
             <div className="relative">
-              <div className="shadow-2xl">
+              <div style={{
+                width: previewWidth,
+                height: previewHeight,
+                backgroundColor: '#ffffff',
+                padding: posterBorder,
+                boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)',
+              }}>
                 <MinimalPosterPreview
                   trackPoints={trackPoints}
                   title={config.title}
                   overlayData={config.overlayData}
                   accentColor={config.accentColor}
-                  width={previewWidth}
-                  height={previewHeight}
+                  width={innerWidth}
+                  height={innerHeight}
                 />
               </div>
               <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 text-sm text-gray-500 bg-white px-3 py-1 rounded shadow">
@@ -291,16 +304,17 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
             </div>
           ) : config.layout === 'photo' && photoUrl ? (
             /* Photo poster composite */
-            <div className="relative overflow-hidden rounded-lg shadow-2xl" style={{ width: previewWidth, height: previewHeight }}>
+            <div style={{ width: previewWidth, height: previewHeight, backgroundColor: '#ffffff', padding: posterBorder, boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)' }}>
+            <div className="relative overflow-hidden" style={{ width: '100%', height: '100%' }}>
               <img src={photoUrl} alt="Poster photo" className="absolute inset-0 w-full h-full object-cover" style={{ zIndex: 0 }} />
               {smoothedTrack.length >= 2 && (
                 <div className="absolute inset-0" style={{ zIndex: 1, opacity: 0.8 }}>
                   <TrackSvg
                     points={smoothedTrack}
-                    width={previewWidth}
-                    height={previewHeight}
+                    width={innerWidth}
+                    height={innerHeight}
                     strokeColor={config.accentColor}
-                    strokeWidth={Math.max(3, Math.round(previewWidth / 120))}
+                    strokeWidth={Math.max(3, Math.round(innerWidth / 120))}
                   />
                 </div>
               )}
@@ -315,9 +329,9 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
                 ] as const;
                 const active = statDefs.filter(s => vs.has(s.key) && (config.overlayData as any)[s.key]);
                 if (!active.length) return null;
-                const fs = Math.max(10, Math.round(previewWidth / 40));
-                const vs2 = Math.max(14, Math.round(previewWidth / 24));
-                const pad = Math.max(8, Math.round(previewHeight / 30));
+                const fs = Math.max(10, Math.round(innerWidth / 40));
+                const vs2 = Math.max(14, Math.round(innerWidth / 24));
+                const pad = Math.max(8, Math.round(innerHeight / 30));
                 return (
                   <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center" style={{ zIndex: 2, background: 'linear-gradient(transparent, rgba(0,0,0,0.7))', padding: `${pad * 2}px ${pad}px ${pad}px` }}>
                     {active.map((stat, i) => (
@@ -333,26 +347,33 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
                 );
               })()}
             </div>
+            </div>
           ) : (
           <div className="relative">
             <div 
-              className="relative shadow-2xl overflow-hidden"
               style={{ 
-                backgroundColor: config.backgroundColor,
+                backgroundColor: '#ffffff',
                 width: `${previewWidth}px`,
                 height: `${previewHeight}px`,
-                display: 'flex',
-                flexDirection: 'column',
-                borderRadius: '14px',
-                border: '1px solid rgba(255,255,255,0.06)',
-                boxShadow: '0 30px 80px -20px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.4)',
+                padding: posterBorder,
+                boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)',
               }}
             >
+              <div 
+                className="relative overflow-hidden"
+                style={{ 
+                  backgroundColor: config.backgroundColor,
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
               {/* Map section */}
               <div style={{
                 position: 'relative',
                 width: '100%',
-                height: config.showDataOverlay ? `${mapSectionHeight}px` : '100%',
+                height: config.showDataOverlay ? `${innerMapSectionHeight}px` : '100%',
                 overflow: 'hidden',
               }}>
                 {summaryMapUrl && (
@@ -389,11 +410,12 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
                   backgroundColor={config.backgroundColor}
                   textColor={config.textColor}
                   fontFamily={config.fontFamily}
-                  width={previewWidth}
-                  height={overlayHeight}
+                  width={innerWidth}
+                  height={innerOverlayHeight}
                   accentColor={config.accentColor}
                 />
               )}
+              </div>
             </div>
             
             {/* Format and orientation indicator */}

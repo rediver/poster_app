@@ -78,7 +78,7 @@ export function PhotoPosterPreview({
 
   return (
       <div
-        className="relative overflow-hidden rounded-lg shadow-xl"
+        className="relative overflow-hidden"
         style={{ width, height }}
       >
         {/* Photo background */}
