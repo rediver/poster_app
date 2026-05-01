@@ -1,9 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { logModule, useLogMount, logInfo, DEBUG_LOAD } from '../src/debug';
 logModule('components/StravaActivitiesScreen.tsx module');
-import { Button } from './ui/button';
-import { Card, CardContent } from './ui/card';
-import { Badge } from './ui/badge';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
 import { MapPin, Clock, Calendar } from 'lucide-react';
@@ -74,6 +71,27 @@ interface StravaActivitiesScreenProps {
 
 export function StravaActivitiesScreen({ onActivitySelected, posterConfig }: StravaActivitiesScreenProps) {
   useLogMount('StravaActivitiesScreen');
+
+  // Sync html+body so no white bleeds below the viewport
+  React.useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlBg = html.style.backgroundColor;
+    const prevBodyBg = body.style.backgroundColor;
+    const prevHtmlOv = html.style.overflow;
+    const prevBodyOv = body.style.overflow;
+    html.style.backgroundColor = '#F6F1E8';
+    body.style.backgroundColor = '#F6F1E8';
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    return () => {
+      html.style.backgroundColor = prevHtmlBg;
+      body.style.backgroundColor = prevBodyBg;
+      html.style.overflow = prevHtmlOv;
+      body.style.overflow = prevBodyOv;
+    };
+  }, []);
+
   const [selectedActivity, setSelectedActivity] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -277,152 +295,239 @@ const getActivityColor = (type: string) => {
   };
 
   return (
-    <div className="h-screen bg-gray-50 overflow-hidden">
-      {/* Main content */}
-      <div className="flex h-full">
-        {/* Left side - Poster Preview */}
-        <div ref={previewContainerRef} className="flex-1 h-full bg-white border-r border-gray-200 flex items-center justify-center p-8 overflow-hidden">
-          <div className="relative">
-            <div 
-              style={{
-                width: `${previewWidth}px`,
-                height: `${previewHeight}px`,
-                backgroundColor: '#ffffff',
-                padding: Math.round(previewWidth * 0.04),
-                boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)',
-              }}
-            >
-            <div 
-              className="relative p-6 flex flex-col overflow-hidden"
-              style={{
-                width: '100%',
-                height: '100%',
-                backgroundColor: posterConfig.backgroundColor,
-              }}
-            >
-              {/* Map + route rendered by Mapbox as single image */}
-              {mapWithRouteUrl ? (
-                <MapImage
-                  src={mapWithRouteUrl}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  style={{ zIndex: 0 }}
-                />
-              ) : (
-                <div className="flex-1 flex items-center justify-center" style={{ position: 'relative', zIndex: 1 }}>
-                  <p className="text-sm text-center" style={{ color: posterConfig.textColor, opacity: 0.3 }}>
-                    Select an activity to preview the route
-                  </p>
+    <div className="h-screen flex overflow-hidden" style={{ fontFamily: "'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif", backgroundColor: '#F6F1E8', padding: 24, gap: 24 }}>
+          {/* ── Left: Premium Preview Stage ── */}
+          <div
+            ref={previewContainerRef}
+            className="flex-1 flex items-center justify-center overflow-hidden"
+            style={{
+              backgroundColor: '#EFE7DB',
+              borderRadius: 20,
+              border: '1px solid #E5DED3',
+              boxShadow: '0 8px 24px rgba(31,36,48,0.06)',
+              padding: 40,
+            }}
+          >
+            <div className="relative">
+              <div
+                style={{
+                  width: `${previewWidth}px`,
+                  height: `${previewHeight}px`,
+                  backgroundColor: '#ffffff',
+                  padding: Math.round(previewWidth * 0.04),
+                  boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)',
+                }}
+              >
+                <div
+                  className="relative p-6 flex flex-col overflow-hidden"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: posterConfig.backgroundColor,
+                  }}
+                >
+                  {mapWithRouteUrl ? (
+                    <MapImage
+                      src={mapWithRouteUrl}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      style={{ zIndex: 0 }}
+                    />
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center" style={{ position: 'relative', zIndex: 1 }}>
+                      <p style={{ fontSize: 13, color: posterConfig.textColor, opacity: 0.3, textAlign: 'center' }}>
+                        Select an activity to preview the route
+                      </p>
+                    </div>
+                  )}
+                  {mapWithRouteUrl && <div className="flex-1" />}
+
+                  <div className="flex flex-col" style={{ position: 'relative', zIndex: 1 }}>
+                    <h1 className="mb-1" style={{
+                      color: posterConfig.accentColor,
+                      fontFamily: posterConfig.fontFamily,
+                      fontSize: `${Math.round(22 * (posterConfig.format === 'A3' ? 1.3 : 1))}px`,
+                      fontWeight: 800,
+                      lineHeight: '1.1',
+                      textShadow: '0 1px 4px rgba(0,0,0,0.7)',
+                    }}>
+                      {selectedActivityData?.name || 'Your Activity'}
+                    </h1>
+                    <p style={{
+                      color: posterConfig.accentColor,
+                      fontFamily: posterConfig.fontFamily,
+                      fontSize: `${Math.round(11 * (posterConfig.format === 'A3' ? 1.0 : 0.9))}px`,
+                      fontWeight: 600,
+                      lineHeight: '1.3',
+                      textShadow: '0 1px 3px rgba(0,0,0,0.7)',
+                    }}>
+                      {selectedActivityData ? `${selectedActivityData.distance} · ${selectedActivityData.duration}` : ''}
+                    </p>
+                  </div>
                 </div>
-              )}
-              {/* Spacer to push text to bottom */}
-              {mapWithRouteUrl && <div className="flex-1" />}
-              
-              <div className="flex flex-col" style={{ position: 'relative', zIndex: 1 }}>
-                <h1 className="mb-1" style={{
-                  color: posterConfig.accentColor,
-                  fontFamily: posterConfig.fontFamily,
-                  fontSize: `${Math.round(22 * (posterConfig.format === 'A3' ? 1.3 : 1))}px`,
-                  fontWeight: 800,
-                  lineHeight: '1.1',
-                  textShadow: '0 1px 4px rgba(0,0,0,0.7)',
-                }}>
-                  {selectedActivityData?.name || 'Your Activity'}
-                </h1>
-                <p style={{
-                  color: posterConfig.accentColor,
-                  fontFamily: posterConfig.fontFamily,
-                  fontSize: `${Math.round(11 * (posterConfig.format === 'A3' ? 1.0 : 0.9))}px`,
-                  fontWeight: 600,
-                  lineHeight: '1.3',
-                  textShadow: '0 1px 3px rgba(0,0,0,0.7)',
-                }}>
-                  {selectedActivityData ? `${selectedActivityData.distance} · ${selectedActivityData.duration}` : ''}
-                </p>
+              </div>
+
+              {/* Format pill */}
+              <div style={{
+                position: 'absolute',
+                bottom: -14,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                backgroundColor: '#FFFFFF',
+                color: '#667085',
+                fontSize: 11,
+                fontWeight: 500,
+                padding: '4px 14px',
+                borderRadius: 20,
+                boxShadow: '0 2px 8px rgba(31,36,48,0.08)',
+                whiteSpace: 'nowrap',
+              }}>
+                {posterConfig.format} · {posterConfig.orientation}
               </div>
             </div>
-            </div>
           </div>
-        </div>
 
-        {/* Right side - Activities List */}
-        <div className="w-[480px] bg-white h-full flex flex-col">
-          <div className="flex-1 overflow-y-auto px-6 pt-6 pb-4">
-            <div className="space-y-4 mb-6">
-              <h1>Your strava routes</h1>
-              <p className="text-muted-foreground">
+          {/* ── Right: Route Selection Panel ── */}
+          <div
+            className="flex flex-col"
+            style={{
+              flex: '0 0 400px',
+              backgroundColor: '#FBF8F3',
+              borderRadius: 20,
+              border: '1px solid #E5DED3',
+              boxShadow: '0 8px 24px rgba(31,36,48,0.06)',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Panel heading */}
+            <div style={{ padding: '28px 28px 0' }}>
+              <h2 style={{
+                fontSize: 28,
+                fontWeight: 700,
+                color: '#1F2430',
+                letterSpacing: '-0.02em',
+                lineHeight: 1.2,
+                marginBottom: 6,
+              }}>
+                Choose your route
+              </h2>
+              <p style={{ fontSize: 14, color: '#667085', lineHeight: 1.5 }}>
                 Select an activity to create your poster
               </p>
             </div>
-            {loading && <div className="text-sm text-muted-foreground">Loading activities...</div>}
-            {error && !loading && <div className="text-sm text-red-500">{error}</div>}
 
-            {!loading && !error && (
-              <RadioGroup value={selectedActivity} onValueChange={setSelectedActivity}>
-              <div className="space-y-3">
-                {activities.map((activity) => (
-                  <div key={activity.id} className="relative">
-                    <RadioGroupItem
-                      value={activity.id}
-                      id={activity.id}
-                      className="absolute top-4 left-4 z-10"
-                    />
-                    <Label
-                      htmlFor={activity.id}
-                      className="block cursor-pointer"
-                    >
-                      <Card className={`hover:shadow-md transition-shadow ${
-                        selectedActivity === activity.id ? 'ring-2 ring-orange-500' : ''
-                      }`}>
-                        <CardContent className="p-4 pl-12">
-                          <div className="flex items-start justify-between">
-                            <div className="space-y-2 flex-1">
-                              <div className="flex items-center gap-2">
-                                <Badge 
-                                  variant="outline" 
-                                  className={getActivityColor(activity.type)}
-                                >
-                                  {activity.type}
-                                </Badge>
-                                <span className="font-medium">{activity.name}</span>
-                              </div>
-                              
-                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                <div className="flex items-center gap-1">
-                                  <MapPin className="w-3 h-3" />
-                                  <span>{activity.distance}</span>
+            {/* Route list */}
+            <div className="premium-scrollbar flex-1 overflow-y-auto" style={{ padding: '20px 28px' }}>
+              {loading && (
+                <div style={{ fontSize: 14, color: '#98A2B3', padding: '20px 0' }}>Loading activities…</div>
+              )}
+              {error && !loading && (
+                <div style={{ fontSize: 14, color: '#d4183d', padding: '20px 0' }}>{error}</div>
+              )}
+
+              {!loading && !error && (
+                <RadioGroup value={selectedActivity} onValueChange={setSelectedActivity}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {activities.map((activity) => {
+                      const isSelected = selectedActivity === activity.id;
+                      const isRun = activity.type === 'Run';
+                      return (
+                        <div key={activity.id}>
+                          <RadioGroupItem value={activity.id} id={activity.id} className="sr-only" />
+                          <Label htmlFor={activity.id} className="block cursor-pointer">
+                            <div className="premium-card" data-selected={isSelected || undefined}>
+                              <div className="flex items-start justify-between">
+                                <div style={{ flex: 1 }}>
+                                  <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+                                    <span style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      letterSpacing: '0.02em',
+                                      padding: '3px 8px',
+                                      borderRadius: 6,
+                                      backgroundColor: isRun ? '#FFF1E6' : '#EFF4FF',
+                                      color: isRun ? '#FC5200' : '#3B82F6',
+                                    }}>
+                                      {activity.type}
+                                    </span>
+                                    <span style={{ fontSize: 15, fontWeight: 600, color: '#1F2430', lineHeight: 1.3 }}>
+                                      {activity.name}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center" style={{ gap: 14 }}>
+                                    <div className="flex items-center gap-1">
+                                      <MapPin style={{ width: 13, height: 13, color: '#98A2B3' }} />
+                                      <span style={{ fontSize: 13, color: '#667085' }}>{activity.distance}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Clock style={{ width: 13, height: 13, color: '#98A2B3' }} />
+                                      <span style={{ fontSize: 13, color: '#667085' }}>{activity.duration}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Calendar style={{ width: 13, height: 13, color: '#98A2B3' }} />
+                                      <span style={{ fontSize: 13, color: '#667085' }}>{activity.date}</span>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3" />
-                                  <span>{activity.duration}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Calendar className="w-3 h-3" />
-                                  <span>{activity.date}</span>
-                                </div>
+
+                                {isSelected && (
+                                  <div style={{
+                                    width: 22,
+                                    height: 22,
+                                    borderRadius: '50%',
+                                    backgroundColor: '#FC5200',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0,
+                                    marginLeft: 8,
+                                    marginTop: 2,
+                                  }}>
+                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                      <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                  </div>
+                                )}
                               </div>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Label>
+                          </Label>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
-              </RadioGroup>
-            )}
-          </div>
+                </RadioGroup>
+              )}
+            </div>
 
-          <div className="p-6 pt-4 border-t border-gray-200">
-            <Button 
-              onClick={handleContinue}
-              disabled={!selectedActivity}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50"
-            >
-              Go to Editor
-            </Button>
+            {/* CTA */}
+            <div style={{ padding: '16px 28px 28px', borderTop: '1px solid #EFE8DD' }}>
+              <p style={{ fontSize: 12, color: '#98A2B3', textAlign: 'center', marginBottom: 12 }}>
+                {selectedActivity ? 'Continue to customize your poster' : 'Select a route to continue'}
+              </p>
+              <button
+                onClick={handleContinue}
+                disabled={!selectedActivity}
+                className="premium-cta"
+                style={{
+                  width: '100%',
+                  height: 48,
+                  backgroundColor: selectedActivity ? '#FC5200' : '#E5DED3',
+                  color: selectedActivity ? '#FFFFFF' : '#98A2B3',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  borderRadius: 12,
+                  border: 'none',
+                  cursor: selectedActivity ? 'pointer' : 'not-allowed',
+                  boxShadow: selectedActivity ? '0 4px 12px rgba(252,82,0,0.3)' : 'none',
+                  transition: 'all 0.2s ease',
+                  letterSpacing: '0.01em',
+                }}
+              >
+                Continue to Editor →
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
     </div>
   );
 }
