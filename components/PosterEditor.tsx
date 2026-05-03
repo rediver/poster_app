@@ -1,17 +1,10 @@
 import React from 'react';
 import { logModule, useLogMount } from '../src/debug';
 logModule('components/PosterEditor.tsx module');
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Switch } from './ui/switch';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Separator } from './ui/separator';
-import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
+import { Slider } from './ui/slider';
 import { mapThemes } from '../src/mapThemes';
 import { Map, Image, Minus } from 'lucide-react';
-import { Slider } from './ui/slider';
 
 interface PosterConfig {
   title: string;
@@ -50,6 +43,7 @@ interface PosterEditorProps {
 
 export function PosterEditor({ config, onConfigChange, onSummary, photoUrl, onClearPhoto }: PosterEditorProps) {
   useLogMount('PosterEditor');
+
   const updateConfig = (updates: Partial<PosterConfig>) => {
     onConfigChange({ ...config, ...updates });
   };
@@ -76,7 +70,6 @@ export function PosterEditor({ config, onConfigChange, onSummary, photoUrl, onCl
     { bg: '#ecfdf5', text: '#065f46', accent: '#10b981' },
   ];
 
-  // Presety kolorów oparte na stylach z maptoposter
   const mapColorPresets = mapThemes.map((t) => ({
     name: t.name,
     bg: t.bg,
@@ -84,93 +77,87 @@ export function PosterEditor({ config, onConfigChange, onSummary, photoUrl, onCl
     accent: t.road_primary || t.road_default || t.text,
   }));
 
-  return (
-    <div className="w-full h-full flex flex-col">
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-      <div className="space-y-4">
-<h2 className="text-2xl font-semibold tracking-tight leading-tight">Transform your memories into beautiful poster</h2>
-      </div>
+  type TreatmentKey = 'photoBrightness' | 'photoContrast' | 'photoSaturation' | 'photoTrackThickness';
+  const treatmentSliders: Array<{
+    label: string;
+    key: TreatmentKey;
+    min: number; max: number; step: number; def: number;
+    fmt: (v: number) => string;
+  }> = [
+    { label: 'Brightness', key: 'photoBrightness',     min: 0.70, max: 1.00, step: 0.01, def: 0.87, fmt: (v) => v.toFixed(2) },
+    { label: 'Contrast',   key: 'photoContrast',       min: 1.00, max: 1.20, step: 0.01, def: 1.10, fmt: (v) => v.toFixed(2) },
+    { label: 'Saturation', key: 'photoSaturation',     min: 0.60, max: 1.00, step: 0.01, def: 0.83, fmt: (v) => v.toFixed(2) },
+    { label: 'Track',      key: 'photoTrackThickness', min: 0.3,  max: 3.0,  step: 0.1,  def: 1.0,  fmt: (v) => `${v.toFixed(1)}×` },
+  ];
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Layout</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { value: 'map' as const, icon: Map, label: 'Map' },
-              { value: 'photo' as const, icon: Image, label: 'Photo' },
-              { value: 'minimal' as const, icon: Minus, label: 'Minimal' },
-            ].map(({ value, icon: Icon, label }) => (
+  return (
+    <div className="editor-sidebar-wrap">
+
+      {/* ── Scrollable sections ── */}
+      <div className="editor-sidebar-scroll">
+
+        {/* 1 · Layout */}
+        <div className="editor-section">
+          <span className="editor-section-title">Layout</span>
+          <div className="editor-mode-grid">
+            {([
+              { value: 'map'     as const, Icon: Map,   label: 'Map'     },
+              { value: 'photo'   as const, Icon: Image, label: 'Photo'   },
+              { value: 'minimal' as const, Icon: Minus, label: 'Minimal' },
+            ]).map(({ value, Icon, label }) => (
               <button
                 key={value}
+                className={`editor-mode-tile${config.layout === value ? ' active' : ''}`}
                 onClick={() => {
                   const updates: Partial<PosterConfig> = { layout: value };
                   if (value === 'minimal') updates.orientation = 'horizontal';
                   updateConfig(updates);
                 }}
-                className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors ${
-                  config.layout === value
-                    ? 'border-orange-500 bg-orange-50'
-                    : 'border-gray-200 hover:border-gray-400'
-                }`}
+                aria-pressed={config.layout === value}
               >
-                <Icon className="h-6 w-6" />
-                <span className="text-sm font-medium">{label}</span>
+                <Icon className="editor-tile-icon" />
+                <span>{label}</span>
               </button>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Photo upload button when photo layout is selected */}
-      {config.layout === 'photo' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Photo</CardTitle>
-          </CardHeader>
-          <CardContent>
+        {/* 2 · Content */}
+        <div className="editor-section">
+          <span className="editor-section-title">Content</span>
+          <label className="editor-label" htmlFor="poster-title">Title</label>
+          <input
+            id="poster-title"
+            className="editor-input"
+            value={config.title}
+            onChange={(e) => updateConfig({ title: e.target.value })}
+            placeholder="Enter activity title"
+          />
+        </div>
+
+        {/* 3 · Photo — photo mode only */}
+        {config.layout === 'photo' && (
+          <div className="editor-section">
+            <span className="editor-section-title">Photo</span>
             {photoUrl ? (
-              <div className="space-y-3">
-                <div className="w-full h-32 rounded-lg overflow-hidden bg-gray-100">
-                  <img src={photoUrl} alt="Uploaded" className="w-full h-full object-cover" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ width: '100%', height: 84, borderRadius: 12, overflow: 'hidden', border: '1px solid #E8DED2' }}>
+                  <img src={photoUrl} alt="Uploaded" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => onClearPhoto?.()}
-                >
-                  Change photo
-                </Button>
+                <button className="editor-btn-secondary" onClick={() => onClearPhoto?.()}>Change photo</button>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Drop a photo on the left panel or click it to upload.
+              <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>
+                Drop a photo on the preview area or click it to upload.
               </p>
             )}
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Content</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
-            <Input
-              id="title"
-              value={config.title}
-              onChange={(e) => updateConfig({ title: e.target.value })}
-              placeholder="Enter poster title"
-            />
           </div>
+        )}
 
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <Label htmlFor="data-overlay">Data Overlay</Label>
+        {/* 4 · Data Overlay */}
+        <div className="editor-section">
+          <div className="editor-section-header">
+            <span className="editor-section-title" style={{ marginBottom: 0 }}>Data Overlay</span>
             <Switch
               id="data-overlay"
               checked={config.showDataOverlay}
@@ -179,18 +166,20 @@ export function PosterEditor({ config, onConfigChange, onSummary, photoUrl, onCl
           </div>
 
           {config.showDataOverlay && config.layout === 'photo' && (
-            <div className="flex flex-wrap gap-2 pt-1">
+            <div className="editor-pill-row">
               {[
-                { key: 'distance', label: 'Distance' },
+                { key: 'distance',  label: 'Distance'  },
                 { key: 'elevation', label: 'Elevation' },
-                { key: 'speed', label: 'Pace' },
-                { key: 'date', label: 'Date' },
-                { key: 'duration', label: 'Time' },
+                { key: 'speed',     label: 'Pace'      },
+                { key: 'date',      label: 'Date'      },
+                { key: 'duration',  label: 'Time'      },
               ].map(({ key, label }) => {
                 const active = (config.visibleStatKeys || []).includes(key);
                 return (
                   <button
                     key={key}
+                    className={`editor-pill${active ? ' active' : ''}`}
+                    aria-pressed={active}
                     onClick={() => {
                       const current = config.visibleStatKeys || [];
                       const next = active
@@ -198,11 +187,6 @@ export function PosterEditor({ config, onConfigChange, onSummary, photoUrl, onCl
                         : [...current, key];
                       updateConfig({ visibleStatKeys: next });
                     }}
-                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                      active
-                        ? 'bg-white text-gray-900 border-gray-300 shadow-sm'
-                        : 'bg-transparent text-gray-400 border-gray-200 hover:border-gray-300'
-                    }`}
                   >
                     {label}
                   </button>
@@ -212,299 +196,188 @@ export function PosterEditor({ config, onConfigChange, onSummary, photoUrl, onCl
           )}
 
           {config.showDataOverlay && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="overlay-distance" className="text-xs">Distance</Label>
-                  <Input
-                    id="overlay-distance"
-                    value={config.overlayData?.distance || ''}
-                    onChange={(e) => updateConfig({
-                      overlayData: { ...config.overlayData, distance: e.target.value }
-                    })}
-                    placeholder="e.g. 49.96 km"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="overlay-duration" className="text-xs">Duration</Label>
-                  <Input
-                    id="overlay-duration"
-                    value={config.overlayData?.duration || ''}
-                    onChange={(e) => updateConfig({
-                      overlayData: { ...config.overlayData, duration: e.target.value }
-                    })}
-                    placeholder="e.g. 1:47:09"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="overlay-speed" className="text-xs">Speed / Pace</Label>
-                  <Input
-                    id="overlay-speed"
-                    value={config.overlayData?.speed || ''}
-                    onChange={(e) => updateConfig({
-                      overlayData: { ...config.overlayData, speed: e.target.value }
-                    })}
-                    placeholder="e.g. 27.98 km/h"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="overlay-elevation" className="text-xs">Elevation</Label>
-                  <Input
-                    id="overlay-elevation"
-                    value={config.overlayData?.elevation || ''}
-                    onChange={(e) => updateConfig({
-                      overlayData: { ...config.overlayData, elevation: e.target.value }
-                    })}
-                    placeholder="e.g. 740 m"
-                  />
-                </div>
+            <div className="editor-fields-grid">
+              <div>
+                <label className="editor-label" htmlFor="ov-dist">Distance</label>
+                <input id="ov-dist" className="editor-input" value={config.overlayData?.distance || ''}
+                  onChange={(e) => updateConfig({ overlayData: { ...config.overlayData, distance: e.target.value } })}
+                  placeholder="49.96 km" />
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="overlay-date" className="text-xs">Date</Label>
-                <Input
-                  id="overlay-date"
-                  value={config.overlayData?.date || ''}
-                  onChange={(e) => updateConfig({
-                    overlayData: { ...config.overlayData, date: e.target.value }
-                  })}
-                  placeholder="e.g. April 4th, 2026"
-                />
+              <div>
+                <label className="editor-label" htmlFor="ov-dur">Duration</label>
+                <input id="ov-dur" className="editor-input" value={config.overlayData?.duration || ''}
+                  onChange={(e) => updateConfig({ overlayData: { ...config.overlayData, duration: e.target.value } })}
+                  placeholder="1:47:09" />
+              </div>
+              <div>
+                <label className="editor-label" htmlFor="ov-spd">Pace / Speed</label>
+                <input id="ov-spd" className="editor-input" value={config.overlayData?.speed || ''}
+                  onChange={(e) => updateConfig({ overlayData: { ...config.overlayData, speed: e.target.value } })}
+                  placeholder="27.98 km/h" />
+              </div>
+              <div>
+                <label className="editor-label" htmlFor="ov-elev">Elevation</label>
+                <input id="ov-elev" className="editor-input" value={config.overlayData?.elevation || ''}
+                  onChange={(e) => updateConfig({ overlayData: { ...config.overlayData, elevation: e.target.value } })}
+                  placeholder="740 m" />
+              </div>
+              <div className="editor-fields-full">
+                <label className="editor-label" htmlFor="ov-date">Date</label>
+                <input id="ov-date" className="editor-input" value={config.overlayData?.date || ''}
+                  onChange={(e) => updateConfig({ overlayData: { ...config.overlayData, date: e.target.value } })}
+                  placeholder="April 4th, 2026" />
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Style & Format</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Orientation */}
-          <div className="space-y-2">
-            <Label>Orientation</Label>
-            <ToggleGroup
-              type="single"
-              value={config.orientation}
-              onValueChange={(value) => value && updateConfig({ orientation: value as 'vertical' | 'horizontal' })}
-              className="justify-start"
+        {/* 5 · Style & Format */}
+        <div className="editor-section">
+          <span className="editor-section-title">Style & Format</span>
+
+          <div style={{ marginBottom: 14 }}>
+            <label className="editor-label">Orientation</label>
+            <div className="editor-segment">
+              {([
+                { value: 'vertical'   as const, label: 'Portrait'  },
+                { value: 'horizontal' as const, label: 'Landscape' },
+              ]).map(({ value, label }) => (
+                <button
+                  key={value}
+                  className={`editor-segment-btn${config.orientation === value ? ' active' : ''}`}
+                  onClick={() => updateConfig({ orientation: value })}
+                  aria-pressed={config.orientation === value}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: config.layout === 'photo' ? 14 : 0 }}>
+            <label className="editor-label" htmlFor="font-select">
+              {config.layout === 'photo' ? 'Title Font' : 'Font'}
+            </label>
+            <select
+              id="font-select"
+              className="editor-input editor-select"
+              value={config.layout === 'photo'
+                ? (config.photoTitleFont || "'Cormorant Garamond', serif")
+                : config.fontFamily
+              }
+              onChange={(e) => {
+                if (config.layout === 'photo') {
+                  updateConfig({ photoTitleFont: e.target.value });
+                } else {
+                  updateConfig({ fontFamily: e.target.value });
+                }
+              }}
             >
-              <ToggleGroupItem value="vertical" aria-label="Vertical orientation">
-                Portrait
-              </ToggleGroupItem>
-              <ToggleGroupItem value="horizontal" aria-label="Horizontal orientation">
-                Landscape
-              </ToggleGroupItem>
-            </ToggleGroup>
+              {(config.layout === 'photo' ? photoTitleFontOptions : fontOptions).map((font) => (
+                <option key={font.value} value={font.value}>{font.label}</option>
+              ))}
+            </select>
           </div>
 
-          <Separator />
-
-          {/* Typography */}
-          {config.layout === 'photo' ? (
-            <div className="space-y-2">
-              <Label>Title Font</Label>
-              <Select
-                value={config.photoTitleFont || "'Cormorant Garamond', serif"}
-                onValueChange={(value) => updateConfig({ photoTitleFont: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {photoTitleFontOptions.map((font) => (
-                    <SelectItem key={font.value} value={font.value}>
-                      <span style={{ fontFamily: font.value }}>{font.label}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Label>Font Family</Label>
-              <Select
-                value={config.fontFamily}
-                onValueChange={(value) => updateConfig({ fontFamily: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {fontOptions.map((font) => (
-                    <SelectItem key={font.value} value={font.value}>
-                      {font.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <Separator />
-
-          {/* Photo Treatment (photo layout only) */}
           {config.layout === 'photo' && (
-            <div className="space-y-4">
-              <Label className="text-sm font-medium">Photo Treatment</Label>
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <div className="flex justify-between">
-                    <Label className="text-xs text-muted-foreground">Brightness</Label>
-                    <span className="text-xs text-muted-foreground tabular-nums">{(config.photoBrightness ?? 0.87).toFixed(2)}</span>
+            <div style={{ paddingTop: 14, borderTop: '1px solid #E8DED2' }}>
+              <span className="editor-section-title" style={{ marginBottom: 12 }}>Photo Treatment</span>
+              {treatmentSliders.map(({ label, key, min, max, step, def, fmt }) => {
+                const val = (config[key] as number | undefined) ?? def;
+                return (
+                  <div key={key} className="editor-slider-row">
+                    <div className="editor-slider-header">
+                      <span className="editor-label" style={{ marginBottom: 0 }}>{label}</span>
+                      <span className="editor-slider-val">{fmt(val)}</span>
+                    </div>
+                    <Slider
+                      min={min} max={max} step={step}
+                      value={[val]}
+                      onValueChange={([v]) => updateConfig({ [key]: v } as Partial<PosterConfig>)}
+                    />
                   </div>
-                  <Slider
-                    min={0.70}
-                    max={1.00}
-                    step={0.01}
-                    value={[config.photoBrightness ?? 0.87]}
-                    onValueChange={([v]) => updateConfig({ photoBrightness: v })}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between">
-                    <Label className="text-xs text-muted-foreground">Contrast</Label>
-                    <span className="text-xs text-muted-foreground tabular-nums">{(config.photoContrast ?? 1.10).toFixed(2)}</span>
-                  </div>
-                  <Slider
-                    min={1.00}
-                    max={1.20}
-                    step={0.01}
-                    value={[config.photoContrast ?? 1.10]}
-                    onValueChange={([v]) => updateConfig({ photoContrast: v })}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between">
-                    <Label className="text-xs text-muted-foreground">Saturation</Label>
-                    <span className="text-xs text-muted-foreground tabular-nums">{(config.photoSaturation ?? 0.83).toFixed(2)}</span>
-                  </div>
-                  <Slider
-                    min={0.60}
-                    max={1.00}
-                    step={0.01}
-                    value={[config.photoSaturation ?? 0.83]}
-                    onValueChange={([v]) => updateConfig({ photoSaturation: v })}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between">
-                    <Label className="text-xs text-muted-foreground">Track Thickness</Label>
-                    <span className="text-xs text-muted-foreground tabular-nums">{(config.photoTrackThickness ?? 1.0).toFixed(1)}×</span>
-                  </div>
-                  <Slider
-                    min={0.3}
-                    max={3.0}
-                    step={0.1}
-                    value={[config.photoTrackThickness ?? 1.0]}
-                    onValueChange={([v]) => updateConfig({ photoTrackThickness: v })}
-                  />
-                </div>
-              </div>
+                );
+              })}
             </div>
           )}
+        </div>
 
-          <Separator />
+        {/* 6 · Style Color (map) / Color (photo, minimal) */}
+        <div className="editor-section">
+          <span className="editor-section-title">
+            {config.layout === 'map' ? 'Style Color' : 'Color'}
+          </span>
 
-          {/* Colors */}
-          <div className="space-y-4">
-            <div className="space-y-3">
-              <Label>Color Presets</Label>
-              <div className="grid grid-cols-5 gap-2">
-                {colorPresets.map((preset, index) => (
-                  <button
-                    key={index}
-                    className="w-8 h-8 rounded border-2 border-gray-200 hover:border-gray-400 transition-colors"
-                    style={{ backgroundColor: preset.bg }}
-                    onClick={() => updateConfig({
-                      backgroundColor: preset.bg,
-                      textColor: preset.text,
-                      accentColor: preset.accent
-                    })}
-                  >
-                    <div 
-                      className="w-full h-2"
-                      style={{ backgroundColor: preset.accent }}
-                    />
-                  </button>
-                ))}
-              </div>
+          <div className="editor-swatch-row">
+            {(config.layout === 'map' ? mapColorPresets : colorPresets).map((preset, i) => {
+              const isActive =
+                config.backgroundColor === preset.bg &&
+                config.accentColor === preset.accent;
+              const name = 'name' in preset ? (preset as {name: string}).name : `Preset ${i + 1}`;
+              return (
+                <button
+                  key={i}
+                  className={`editor-swatch${isActive ? ' active' : ''}`}
+                  style={{ backgroundColor: preset.bg }}
+                  onClick={() => updateConfig({
+                    backgroundColor: preset.bg,
+                    textColor: preset.text,
+                    accentColor: preset.accent,
+                  })}
+                  aria-label={name}
+                  title={name}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: 'absolute', bottom: 0, left: 0, right: 0,
+                      height: 6, backgroundColor: preset.accent,
+                      borderRadius: '0 0 6px 6px',
+                    }}
+                  />
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="editor-color-pickers">
+            <div>
+              <label className="editor-label" htmlFor="col-bg">
+                {config.layout === 'photo' ? 'Value' : 'Background'}
+              </label>
+              <input id="col-bg" type="color" value={config.backgroundColor}
+                onChange={(e) => updateConfig({ backgroundColor: e.target.value })}
+                className="editor-color-input" />
             </div>
-
-            {config.layout !== 'photo' && (
-            <div className="space-y-3">
-              <Label>Map styles (z maptoposter)</Label>
-              <div className="grid grid-cols-5 gap-2">
-                {mapColorPresets.map((preset) => (
-                  <div key={preset.name} className="flex flex-col items-center gap-1">
-                    <button
-                      className="w-8 h-8 rounded border-2 border-gray-200 hover:border-gray-400 transition-colors"
-                      style={{ backgroundColor: preset.bg }}
-                      onClick={() => updateConfig({
-                        backgroundColor: preset.bg,
-                        textColor: preset.text,
-                        accentColor: preset.accent,
-                      })}
-                      aria-label={`Map style ${preset.name}`}
-                      title={preset.name}
-                    >
-                      <div className="w-full h-2" style={{ backgroundColor: preset.accent }} />
-                    </button>
-                    <span className="text-[10px] text-muted-foreground text-center leading-tight">{preset.name}</span>
-                  </div>
-                ))}
-              </div>
+            <div>
+              <label className="editor-label" htmlFor="col-text">
+                {config.layout === 'photo' ? 'Label' : 'Text'}
+              </label>
+              <input id="col-text" type="color" value={config.textColor}
+                onChange={(e) => updateConfig({ textColor: e.target.value })}
+                className="editor-color-input" />
             </div>
-            )}
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="bg-color">{config.layout === 'photo' ? 'Value' : 'Background'}</Label>
-                <input
-                  id="bg-color"
-                  type="color"
-                  value={config.backgroundColor}
-                  onChange={(e) => updateConfig({ backgroundColor: e.target.value })}
-                  className="w-full h-9 rounded border border-input"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="text-color">{config.layout === 'photo' ? 'Label' : 'Text'}</Label>
-                <input
-                  id="text-color"
-                  type="color"
-                  value={config.textColor}
-                  onChange={(e) => updateConfig({ textColor: e.target.value })}
-                  className="w-full h-9 rounded border border-input"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="accent-color">{config.layout === 'photo' ? 'Track' : 'Accent'}</Label>
-                <input
-                  id="accent-color"
-                  type="color"
-                  value={config.accentColor}
-                  onChange={(e) => updateConfig({ accentColor: e.target.value })}
-                  className="w-full h-9 rounded border border-input"
-                />
-              </div>
+            <div>
+              <label className="editor-label" htmlFor="col-accent">
+                {config.layout === 'photo' ? 'Track' : 'Accent'}
+              </label>
+              <input id="col-accent" type="color" value={config.accentColor}
+                onChange={(e) => updateConfig({ accentColor: e.target.value })}
+                className="editor-color-input" />
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
+        <div style={{ height: 8 }} />
       </div>
 
-      <div className="p-6 pt-4 border-t border-gray-200">
-        <Button 
-          onClick={onSummary}
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-        >
-          Summary
-        </Button>
+      {/* ── CTA footer ── */}
+      <div className="editor-cta-footer">
+        <button className="editor-cta" onClick={onSummary}>
+          Summary →
+        </button>
       </div>
+
     </div>
   );
 }

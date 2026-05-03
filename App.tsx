@@ -372,21 +372,69 @@ const handleGpxImported = (points: LatLng[]) => {
   // Show poster editor (default)
   const isPhotoLayout = config.layout === 'photo';
 
+  // Shared poster mat: white paper, elegant shadow
+  const posterMatStyle: React.CSSProperties = {
+    backgroundColor: '#ffffff',
+    width: previewWidth,
+    height: previewHeight,
+    padding: posterBorder,
+    boxShadow: '0 22px 60px rgba(31,35,40,0.12)',
+    border: '1px solid rgba(34,39,51,0.08)',
+  };
+
+  // Format badge shared across all poster modes
+  const formatBadge = (
+    <div style={{
+      position: 'absolute',
+      bottom: -14,
+      left: '50%',
+      transform: 'translateX(-50%)',
+      backgroundColor: '#FAF6EF',
+      color: '#9CA3AF',
+      fontSize: 11,
+      fontWeight: 500,
+      padding: '4px 14px',
+      borderRadius: 999,
+      border: '1px solid #E3DBCF',
+      boxShadow: '0 1px 2px rgba(31,36,48,0.04)',
+      whiteSpace: 'nowrap',
+      zIndex: 10,
+    }}>
+      {config.format} · {config.orientation === 'vertical' ? 'Portrait' : 'Landscape'}
+    </div>
+  );
+
   return (
-    <div className="h-screen bg-gray-50 overflow-hidden">
-      {/* Main content */}
-      <div className="flex h-full">
-        {/* Left side - Large Poster Preview (fixed) */}
-        <div ref={previewContainerRef} className="flex-1 h-full bg-white border-r border-gray-200 flex items-center justify-center p-8 overflow-hidden">
-          {isPhotoLayout && photoUrl ? (
-            /* Photo poster composite preview */
-            <div style={{
-              width: previewWidth,
-              height: previewHeight,
-              backgroundColor: '#ffffff',
-              padding: posterBorder,
-              boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)',
-            }}>
+    <div style={{
+      height: '100vh',
+      backgroundColor: '#F7F1E8',
+      overflow: 'hidden',
+      display: 'flex',
+      padding: '20px',
+      gap: '20px',
+      boxSizing: 'border-box',
+    }}>
+      {/* Left: Poster Preview Stage */}
+      <div
+        ref={previewContainerRef}
+        style={{
+          flex: 1,
+          height: '100%',
+          backgroundColor: '#EAE2D6',
+          borderRadius: 20,
+          border: '1px solid #E3DBCF',
+          boxShadow: '0 12px 30px rgba(31,36,48,0.07)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          overflow: 'hidden',
+        }}
+      >
+        {isPhotoLayout && photoUrl ? (
+          /* Photo poster composite preview */
+          <div className="relative">
+            <div style={posterMatStyle}>
               <PhotoPosterPreview
                 photoUrl={photoUrl}
                 title={config.title}
@@ -407,25 +455,21 @@ const handleGpxImported = (points: LatLng[]) => {
                 trackThickness={config.photoTrackThickness}
               />
             </div>
-          ) : isPhotoLayout && !photoUrl ? (
-            /* Inline photo upload drop zone */
-            <PhotoUploadStep
-              activityName={config.title || undefined}
-              activityDate={config.overlayData?.date || undefined}
-              onPhotoUploaded={handlePhotoUploaded}
-              onBack={() => setConfig((prev) => ({ ...prev, layout: 'map' }))}
-              inline
-            />
-          ) : config.layout === 'minimal' ? (
-          /* ── Minimal: Scandinavian editorial ── */
+            {formatBadge}
+          </div>
+        ) : isPhotoLayout && !photoUrl ? (
+          /* Inline photo upload drop zone */
+          <PhotoUploadStep
+            activityName={config.title || undefined}
+            activityDate={config.overlayData?.date || undefined}
+            onPhotoUploaded={handlePhotoUploaded}
+            onBack={() => setConfig((prev) => ({ ...prev, layout: 'map' }))}
+            inline
+          />
+        ) : config.layout === 'minimal' ? (
+          /* Minimal: Scandinavian editorial */
           <div className="relative">
-            <div style={{
-              width: previewWidth,
-              height: previewHeight,
-              backgroundColor: '#ffffff',
-              padding: posterBorder,
-              boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)',
-            }}>
+            <div style={posterMatStyle}>
               <MinimalPosterPreview
                 trackPoints={trackPoints}
                 title={config.title}
@@ -435,25 +479,15 @@ const handleGpxImported = (points: LatLng[]) => {
                 height={innerHeight}
               />
             </div>
-            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs text-gray-500 bg-white px-2 py-1 rounded shadow">
-              {config.format} – {config.orientation}
-            </div>
+            {formatBadge}
           </div>
-          ) : (
-          /* ── Map layout ── */
+        ) : (
+          /* Map layout */
           <div className="relative">
-            <div 
-              style={{ 
-                backgroundColor: '#ffffff',
-                width: `${previewWidth}px`,
-                height: `${previewHeight}px`,
-                padding: posterBorder,
-                boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)',
-              }}
-            >
-              <div 
+            <div style={posterMatStyle}>
+              <div
                 className="relative overflow-hidden"
-                style={{ 
+                style={{
                   backgroundColor: config.backgroundColor,
                   width: '100%',
                   height: '100%',
@@ -461,74 +495,82 @@ const handleGpxImported = (points: LatLng[]) => {
                   flexDirection: 'column',
                 }}
               >
-              <div style={{
-                position: 'relative',
-                width: '100%',
-                height: config.showDataOverlay ? `${innerMapSectionHeight}px` : '100%',
-                overflow: 'hidden',
-              }}>
-                {editorMapUrl ? (
-                  <MapImage
-                    src={editorMapUrl}
-                    className="absolute inset-0 w-full h-full object-cover z-0"
-                  />
-                ) : (
-                  <div className="absolute inset-0 z-0 flex items-center justify-center">
-                    <span className="text-xs text-gray-300">
-                      {`No map URL (track: ${trackPoints.length} pts, token: ${mapboxToken ? 'yes' : 'NO'})`}
-                    </span>
-                  </div>
-                )}
-                {!config.showDataOverlay && (
-                  <div className={`relative z-20 h-full p-6 flex flex-col ${getLayoutClasses()}`}>
-                    <div className="flex-1 flex flex-col justify-end">
-                      <h1
-                        className="mb-2"
-                        style={{
-                          color: config.accentColor,
-                          fontFamily: config.fontFamily,
-                          fontSize: `${fontSizes.title}px`,
-                          fontWeight: '700',
-                          lineHeight: '1.1',
-                        }}
-                      >
-                        {config.title}
-                      </h1>
+                <div style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: config.showDataOverlay ? `${innerMapSectionHeight}px` : '100%',
+                  overflow: 'hidden',
+                }}>
+                  {editorMapUrl ? (
+                    <MapImage
+                      src={editorMapUrl}
+                      className="absolute inset-0 w-full h-full object-cover z-0"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 z-0 flex items-center justify-center">
+                      <span className="text-xs text-gray-300">
+                        {`No map URL (track: ${trackPoints.length} pts, token: ${mapboxToken ? 'yes' : 'NO'})`}
+                      </span>
                     </div>
-                  </div>
+                  )}
+                  {!config.showDataOverlay && (
+                    <div className={`relative z-20 h-full p-6 flex flex-col ${getLayoutClasses()}`}>
+                      <div className="flex-1 flex flex-col justify-end">
+                        <h1
+                          className="mb-2"
+                          style={{
+                            color: config.accentColor,
+                            fontFamily: config.fontFamily,
+                            fontSize: `${fontSizes.title}px`,
+                            fontWeight: '700',
+                            lineHeight: '1.1',
+                          }}
+                        >
+                          {config.title}
+                        </h1>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {config.showDataOverlay && (
+                  <DataOverlay
+                    title={config.title}
+                    data={config.overlayData}
+                    backgroundColor={config.backgroundColor}
+                    textColor={config.textColor}
+                    fontFamily={config.fontFamily}
+                    width={innerWidth}
+                    height={innerOverlayHeight}
+                    accentColor={config.accentColor}
+                  />
                 )}
               </div>
-              {config.showDataOverlay && (
-                <DataOverlay
-                  title={config.title}
-                  data={config.overlayData}
-                  backgroundColor={config.backgroundColor}
-                  textColor={config.textColor}
-                  fontFamily={config.fontFamily}
-                  width={innerWidth}
-                  height={innerOverlayHeight}
-                  accentColor={config.accentColor}
-                />
-              )}
-              </div>
             </div>
-            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs text-gray-500 bg-white px-2 py-1 rounded shadow">
-              {config.format} - {config.orientation}
-            </div>
+            {formatBadge}
           </div>
-          )}
-        </div>
+        )}
+      </div>
 
-        {/* Right side - Editor (scrollable) */}
-        <div className="w-[480px] bg-white h-full overflow-y-auto">
-          <PosterEditor
-            config={config}
-            onConfigChange={setConfig}
-            onSummary={handleSummary}
-            photoUrl={photoUrl}
-            onClearPhoto={() => setPhotoUrl('')}
-          />
-        </div>
+      {/* Right: Editor Panel */}
+      <div style={{
+        width: 400,
+        minWidth: 340,
+        height: '100%',
+        backgroundColor: '#FAF6EF',
+        borderRadius: 20,
+        border: '1px solid #E3DBCF',
+        boxShadow: '0 12px 30px rgba(31,36,48,0.07)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        <PosterEditor
+          config={config}
+          onConfigChange={setConfig}
+          onSummary={handleSummary}
+          photoUrl={photoUrl}
+          onClearPhoto={() => setPhotoUrl('')}
+        />
       </div>
     </div>
   );
