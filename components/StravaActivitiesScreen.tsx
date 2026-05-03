@@ -390,7 +390,8 @@ const getActivityColor = (type: string) => {
           <div
             className="flex flex-col"
             style={{
-              flex: '0 0 400px',
+              flex: '0 0 25%',
+              minWidth: 320,
               backgroundColor: '#FBF8F3',
               borderRadius: 20,
               border: '1px solid #E5DED3',
