@@ -105,22 +105,32 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div style={{ minHeight: '100vh', backgroundColor: '#F7F1E8' }}>
       {/* Main content */}
       <div className="flex min-h-screen">
         {/* Left side - Poster Preview */}
-        <div className="flex-1 bg-white border-r border-gray-200 flex items-center justify-center p-8">
+        <div
+          className="flex-1 flex items-center justify-center p-8"
+          style={{ backgroundColor: '#EAE2D6' }}
+        >
           <div className="relative">
-            <div className="w-80 h-96 bg-white border-2 border-gray-300 shadow-xl p-6 flex flex-col">
+            <div
+              className="w-80 h-96 p-6 flex flex-col"
+              style={{
+                backgroundColor: '#ffffff',
+                border: '1px solid rgba(34,39,51,0.08)',
+                boxShadow: '0 22px 60px rgba(31,35,40,0.12)',
+              }}
+            >
               <div className="mb-4">
-                <pre className="text-sm font-semibold text-gray-800 leading-tight">
+                <pre className="text-sm font-semibold leading-tight" style={{ color: '#1F2328' }}>
                   ABCD{'\n'}EFGHIJK{'\n'}LMNOP{'\n'}QRSTUV{'\n'}WXYZ
                 </pre>
               </div>
-              
+
               <div className="flex-1 flex flex-col justify-end">
-                <h1 className="text-2xl font-bold text-orange-500 mb-2">Helvetica</h1>
-                <p className="text-sm text-gray-600 leading-relaxed">
+                <h1 className="text-2xl font-bold mb-2" style={{ color: '#FC4C02' }}>Helvetica</h1>
+                <p className="text-sm leading-relaxed" style={{ color: '#6B7280' }}>
                   A neo-grotesque or realist design, one of the most popular typefaces in the world
                 </p>
               </div>
@@ -129,40 +139,57 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         </div>
 
         {/* Right side - Import Options */}
-        <div className="w-[480px] bg-white flex flex-col justify-center p-8">
+        <div
+          className="w-[480px] flex flex-col justify-center p-8"
+          style={{ backgroundColor: '#FAF6EF', borderLeft: '1px solid #E3DBCF' }}
+        >
           <div className="max-w-md mx-auto w-full space-y-8">
             <div className="space-y-4">
-<h1 className="text-3xl font-semibold tracking-tight leading-tight">Transform your memories into beautiful poster</h1>
+              <h1 className="text-3xl font-semibold tracking-tight leading-tight" style={{ color: '#1F2328' }}>
+                Transform your memories into beautiful poster
+              </h1>
             </div>
 
             <div className="space-y-4">
-              <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={handleStravaClick}>
+              <Card
+                className="cursor-pointer transition-shadow"
+                style={{ backgroundColor: '#FFFFFF', borderColor: '#E8DED2' }}
+                onClick={handleStravaClick}
+                onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 8px 24px rgba(31,35,40,0.08)')}
+                onMouseLeave={(e) => (e.currentTarget.style.boxShadow = '')}
+              >
                 <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-orange-500 rounded flex items-center justify-center">
+                  <CardTitle className="flex items-center gap-3" style={{ color: '#1F2328' }}>
+                    <div
+                      className="w-8 h-8 rounded flex items-center justify-center"
+                      style={{ backgroundColor: '#FC4C02' }}
+                    >
                       <Activity className="w-4 h-4 text-white" />
                     </div>
                     <span>Strava</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm" style={{ color: '#6B7280' }}>
                     Connect your Strava account to import your activities
                   </p>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card style={{ backgroundColor: '#FFFFFF', borderColor: '#E8DED2' }}>
                 <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-500 rounded flex items-center justify-center">
+                  <CardTitle className="flex items-center gap-3" style={{ color: '#1F2328' }}>
+                    <div
+                      className="w-8 h-8 rounded flex items-center justify-center"
+                      style={{ backgroundColor: '#6B7280' }}
+                    >
                       <Upload className="w-4 h-4 text-white" />
                     </div>
                     <span>GPX</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">
+                  <p className="text-sm mb-4" style={{ color: '#6B7280' }}>
                     Upload a GPX file from your device
                   </p>
                   <div className="relative">
@@ -172,7 +199,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                       onChange={handleFileUpload}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
-                    <Button variant="outline" className="w-full">
+                    <Button variant="outline" className="w-full" style={{ borderColor: '#E8DED2', color: '#6B7280' }}>
                       Choose GPX File
                     </Button>
                   </div>

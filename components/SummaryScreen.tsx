@@ -246,9 +246,49 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
   const innerOverlayHeight = Math.round(innerHeight * overlayFraction);
   const innerMapSectionHeight = Math.round(innerHeight - innerOverlayHeight);
 
+  // Shared poster mat style (mirrors App.tsx editor)
+  const posterMatStyle: React.CSSProperties = {
+    backgroundColor: '#ffffff',
+    width: previewWidth,
+    height: previewHeight,
+    padding: posterBorder,
+    boxShadow: '0 22px 60px rgba(31,35,40,0.12)',
+    border: '1px solid rgba(34,39,51,0.08)',
+  };
+
+  const formatBadge = (
+    <div style={{
+      position: 'absolute',
+      bottom: -14,
+      left: '50%',
+      transform: 'translateX(-50%)',
+      backgroundColor: '#FAF6EF',
+      color: '#9CA3AF',
+      fontSize: 11,
+      fontWeight: 500,
+      padding: '4px 14px',
+      borderRadius: 999,
+      border: '1px solid #E3DBCF',
+      boxShadow: '0 1px 2px rgba(31,36,48,0.04)',
+      whiteSpace: 'nowrap',
+      zIndex: 10,
+    }}>
+      {config.format} · {config.orientation === 'vertical' ? 'Portrait' : 'Landscape'}
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* ── Submission overlay ─────────────────────────────────────── */}
+    <div style={{
+      height: '100vh',
+      backgroundColor: '#F7F1E8',
+      overflow: 'hidden',
+      display: 'flex',
+      padding: '20px',
+      gap: '20px',
+      boxSizing: 'border-box',
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    }}>
+      {/* ── Submission overlay ──────────────────────────────────────────────────── */}
       {submitting && (
         <>
           {/* Subtle full-screen dimming */}
@@ -282,19 +322,27 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
         </>
       )}
       {/* Main content */}
-      <div className="flex min-h-screen">
-        {/* Left side - Large Poster Preview */}
-        <div ref={previewContainerRef} className="flex-1 bg-white border-r border-gray-200 flex items-center justify-center p-12">
+      <div style={{ display: 'flex', flex: 1, gap: 'inherit', overflow: 'hidden', height: '100%' }}>
+        {/* Left: Poster Preview Stage */}
+        <div
+          ref={previewContainerRef}
+          style={{
+            flex: 1,
+            height: '100%',
+            backgroundColor: '#EAE2D6',
+            borderRadius: 20,
+            border: '1px solid #E3DBCF',
+            boxShadow: '0 12px 30px rgba(31,36,48,0.07)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            overflow: 'hidden',
+          }}
+        >
           {config.layout === 'minimal' ? (
-            /* ── Minimal: Scandinavian editorial ── */
             <div className="relative">
-              <div style={{
-                width: previewWidth,
-                height: previewHeight,
-                backgroundColor: '#ffffff',
-                padding: posterBorder,
-                boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)',
-              }}>
+              <div style={posterMatStyle}>
                 <MinimalPosterPreview
                   trackPoints={trackPoints}
                   title={config.title}
@@ -304,163 +352,184 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
                   height={innerHeight}
                 />
               </div>
-              <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 text-sm text-gray-500 bg-white px-3 py-1 rounded shadow">
-                {config.format} – {config.orientation}
-              </div>
+              {formatBadge}
             </div>
           ) : config.layout === 'photo' && photoUrl ? (
-            /* Photo poster composite — uses the same editorial component as the editor */
-            <div style={{ width: previewWidth, height: previewHeight, backgroundColor: '#ffffff', padding: posterBorder, boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)' }}>
-              <PhotoPosterPreview
-                photoUrl={photoUrl}
-                title={config.title}
-                trackPoints={trackPoints}
-                overlayData={config.overlayData}
-                accentColor={config.accentColor}
-                labelColor={config.textColor}
-                valueColor={config.backgroundColor}
-                fontFamily={config.fontFamily}
-                width={innerWidth}
-                height={innerHeight}
-                statsVisible={photoStatsVisible}
-                visibleStats={photoVisibleStats || new Set(['distance', 'speed', 'date'])}
-                titleFont={config.photoTitleFont}
-                brightness={config.photoBrightness}
-                contrast={config.photoContrast}
-                saturation={config.photoSaturation}
-                trackThickness={config.photoTrackThickness}
-              />
-            </div>
-          ) : (
-          <div className="relative">
-            <div 
-              style={{ 
-                backgroundColor: '#ffffff',
-                width: `${previewWidth}px`,
-                height: `${previewHeight}px`,
-                padding: posterBorder,
-                boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)',
-              }}
-            >
-              <div 
-                className="relative overflow-hidden"
-                style={{ 
-                  backgroundColor: config.backgroundColor,
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-              >
-              {/* Map section */}
-              <div style={{
-                position: 'relative',
-                width: '100%',
-                height: config.showDataOverlay ? `${innerMapSectionHeight}px` : '100%',
-                overflow: 'hidden',
-              }}>
-                {summaryMapUrl && (
-                  <MapImage
-                    src={summaryMapUrl}
-                    className="absolute inset-0 w-full h-full object-cover z-0"
-                  />
-                )}
-                {!config.showDataOverlay && (
-                  <div className={`relative z-20 h-full p-8 flex flex-col ${getLayoutClasses()}`}>
-                    <div className="flex-1 flex flex-col justify-end">
-                      <h1 
-                        className="mb-3"
-                        style={{ 
-                          color: config.accentColor,
-                          fontFamily: config.fontFamily,
-                          fontSize: `${fontSizes.title}px`,
-                          fontWeight: '700',
-                          lineHeight: '1.1'
-                        }}
-                      >
-                        {config.title}
-                      </h1>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Data overlay */}
-              {config.showDataOverlay && (
-                <DataOverlay
+            <div className="relative">
+              <div style={posterMatStyle}>
+                <PhotoPosterPreview
+                  photoUrl={photoUrl}
                   title={config.title}
-                  data={config.overlayData}
-                  backgroundColor={config.backgroundColor}
-                  textColor={config.textColor}
+                  trackPoints={trackPoints}
+                  overlayData={config.overlayData}
+                  accentColor={config.accentColor}
+                  labelColor={config.textColor}
+                  valueColor={config.backgroundColor}
                   fontFamily={config.fontFamily}
                   width={innerWidth}
-                  height={innerOverlayHeight}
-                  accentColor={config.accentColor}
+                  height={innerHeight}
+                  statsVisible={photoStatsVisible}
+                  visibleStats={photoVisibleStats || new Set(['distance', 'speed', 'date'])}
+                  titleFont={config.photoTitleFont}
+                  brightness={config.photoBrightness}
+                  contrast={config.photoContrast}
+                  saturation={config.photoSaturation}
+                  trackThickness={config.photoTrackThickness}
                 />
-              )}
               </div>
+              {formatBadge}
             </div>
-            
-            {/* Format and orientation indicator */}
-            <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 text-sm text-gray-500 bg-white px-3 py-1 rounded shadow">
-              {config.format} - {config.orientation}
+          ) : (
+            <div className="relative">
+              <div style={posterMatStyle}>
+                <div
+                  className="relative overflow-hidden"
+                  style={{
+                    backgroundColor: config.backgroundColor,
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
+                  <div style={{
+                    position: 'relative',
+                    width: '100%',
+                    height: config.showDataOverlay ? `${innerMapSectionHeight}px` : '100%',
+                    overflow: 'hidden',
+                  }}>
+                    {summaryMapUrl && (
+                      <MapImage
+                        src={summaryMapUrl}
+                        className="absolute inset-0 w-full h-full object-cover z-0"
+                      />
+                    )}
+                    {!config.showDataOverlay && (
+                      <div className={`relative z-20 h-full p-8 flex flex-col ${getLayoutClasses()}`}>
+                        <div className="flex-1 flex flex-col justify-end">
+                          <h1
+                            className="mb-3"
+                            style={{
+                              color: config.accentColor,
+                              fontFamily: config.fontFamily,
+                              fontSize: `${fontSizes.title}px`,
+                              fontWeight: '700',
+                              lineHeight: '1.1',
+                            }}
+                          >
+                            {config.title}
+                          </h1>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {config.showDataOverlay && (
+                    <DataOverlay
+                      title={config.title}
+                      data={config.overlayData}
+                      backgroundColor={config.backgroundColor}
+                      textColor={config.textColor}
+                      fontFamily={config.fontFamily}
+                      width={innerWidth}
+                      height={innerOverlayHeight}
+                      accentColor={config.accentColor}
+                    />
+                  )}
+                </div>
+              </div>
+              {formatBadge}
             </div>
-          </div>
           )}
         </div>
 
-        {/* Right side - Summary and Checkout */}
-        <div className="w-[480px] bg-white flex flex-col justify-center p-8">
-          <div className="max-w-md mx-auto w-full space-y-8">
-            <div className="space-y-4">
-              <h1>You made it!</h1>
-              <p className="text-muted-foreground">
-                congratulations on making a poster, it will definitely look beautiful! you have two last choices and it's ready
+        {/* Right: Summary & Checkout panel */}
+        <div style={{
+          width: 400,
+          minWidth: 340,
+          height: '100%',
+          backgroundColor: '#FAF6EF',
+          borderRadius: 20,
+          border: '1px solid #E3DBCF',
+          boxShadow: '0 12px 30px rgba(31,36,48,0.07)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+        }}>
+          <div style={{ padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {/* Heading */}
+            <div>
+              <h1 style={{
+                fontSize: 28,
+                fontWeight: 700,
+                color: '#1F2328',
+                letterSpacing: '-0.03em',
+                lineHeight: 1.15,
+                marginBottom: 8,
+              }}>
+                You made it!
+              </h1>
+              <p style={{ fontSize: 14, color: '#6B7280', lineHeight: 1.5, margin: 0 }}>
+                Your poster looks beautiful. Confirm below to send it to print.
               </p>
             </div>
 
-            <div className="space-y-6">
-              <div className="flex items-start space-x-3">
-                <Checkbox
-                  id="review"
-                  checked={isReviewed}
-                  onCheckedChange={(checked) => setIsReviewed(checked as boolean)}
-                  className="mt-1"
-                />
-                <label 
-                  htmlFor="review" 
-                  className="text-sm leading-relaxed cursor-pointer"
-                >
-                  I have review the file and am happy to print
-                </label>
-              </div>
+            {/* Review checkbox card */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 12,
+              padding: '16px 18px',
+              backgroundColor: '#FFFFFF',
+              borderRadius: 14,
+              border: '1px solid #E8DED2',
+            }}>
+              <Checkbox
+                id="review"
+                checked={isReviewed}
+                onCheckedChange={(checked) => setIsReviewed(checked as boolean)}
+                style={{ marginTop: 2, flexShrink: 0 }}
+              />
+              <label htmlFor="review" style={{
+                fontSize: 13,
+                color: '#1F2328',
+                lineHeight: 1.5,
+                cursor: 'pointer',
+              }}>
+                I have reviewed the file and am happy to print
+              </label>
+            </div>
 
-              <div className="flex space-x-3">
-                <Button 
-                  onClick={onBack}
-                  variant="outline"
-                  className="flex-1 h-12"
-                >
-                  Back
-                </Button>
-                
-                <Button 
-                  onClick={handleCheckout}
-                  disabled={!isReviewed || submitting}
-                  className="flex-1 h-12 bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  <span className="inline-flex items-center justify-center gap-2">
-                    {submitting && (
-                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                    )}
-                    {submitting ? 'Creating…' : 'Confirm'}
-                  </span>
-                </Button>
-              </div>
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={onBack}
+                className="editor-btn-secondary"
+                style={{ flex: 1, height: 48, fontSize: 14, fontWeight: 600 }}
+              >
+                ← Back
+              </button>
+              <button
+                onClick={handleCheckout}
+                disabled={!isReviewed || submitting}
+                className="editor-cta"
+                style={{
+                  flex: 2,
+                  opacity: (!isReviewed || submitting) ? 0.5 : 1,
+                  cursor: (!isReviewed || submitting) ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                }}
+              >
+                {submitting && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
+                {submitting ? 'Creating…' : 'Confirm →'}
+              </button>
             </div>
 
             {errorMsg && (
-              <div className="text-sm text-red-600 mt-2">{errorMsg}</div>
+              <div style={{ fontSize: 13, color: '#d4183d' }}>{errorMsg}</div>
             )}
           </div>
         </div>
