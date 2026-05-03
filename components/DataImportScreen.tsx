@@ -4,6 +4,7 @@ logModule('components/DataImportScreen.tsx module');
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Upload, Activity } from 'lucide-react';
+import poster2 from '../styles/poster2.png';
 
 type LatLng = [number, number];
 
@@ -108,34 +109,13 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     <div style={{ minHeight: '100vh', backgroundColor: '#F7F1E8' }}>
       {/* Main content */}
       <div className="flex min-h-screen">
-        {/* Left side - Poster Preview */}
-        <div
-          className="flex-1 flex items-center justify-center p-8"
-          style={{ backgroundColor: '#EAE2D6' }}
-        >
-          <div className="relative">
-            <div
-              className="w-80 h-96 p-6 flex flex-col"
-              style={{
-                backgroundColor: '#ffffff',
-                border: '1px solid rgba(34,39,51,0.08)',
-                boxShadow: '0 22px 60px rgba(31,35,40,0.12)',
-              }}
-            >
-              <div className="mb-4">
-                <pre className="text-sm font-semibold leading-tight" style={{ color: '#1F2328' }}>
-                  ABCD{'\n'}EFGHIJK{'\n'}LMNOP{'\n'}QRSTUV{'\n'}WXYZ
-                </pre>
-              </div>
-
-              <div className="flex-1 flex flex-col justify-end">
-                <h1 className="text-2xl font-bold mb-2" style={{ color: '#FC4C02' }}>Helvetica</h1>
-                <p className="text-sm leading-relaxed" style={{ color: '#6B7280' }}>
-                  A neo-grotesque or realist design, one of the most popular typefaces in the world
-                </p>
-              </div>
-            </div>
-          </div>
+        {/* Left side - Poster image */}
+        <div className="flex-1 relative overflow-hidden">
+          <img
+            src={poster2}
+            alt="Poster preview"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', display: 'block' }}
+          />
         </div>
 
         {/* Right side - Import Options */}
