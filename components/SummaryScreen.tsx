@@ -79,12 +79,36 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  /**
+   * Builds a Shopify cart URL from a poster S3 image URL.
+   * Uses attributes[] format so all data is visible in Shopify order notes.
+   * Called as a fallback if the backend does not return a ready-made cart_url.
+   */
+  const buildCartUrl = (imageUrl: string): string => {
+    const layoutLabel: Record<string, string> = {
+      map: 'Mapa',
+      photo: 'Zdjęcie',
+      minimal: 'Minimal',
+    };
+    const params = new URLSearchParams();
+    params.set('attributes[Nazwa aktywności]', config.title || '');
+    if (config.overlayData?.date)      params.set('attributes[Data]',          config.overlayData.date);
+    if (config.overlayData?.distance)  params.set('attributes[Dystans]',        config.overlayData.distance);
+    if (config.overlayData?.duration)  params.set('attributes[Czas]',           config.overlayData.duration);
+    if (config.overlayData?.speed)     params.set('attributes[Tempo]',          config.overlayData.speed);
+    if (config.overlayData?.elevation) params.set('attributes[Przewyższenie]',   config.overlayData.elevation);
+    params.set('attributes[Styl mapy]',    layoutLabel[config.layout] ?? config.layout);
+    params.set('attributes[Format]',       `${config.format} · ${config.orientation === 'vertical' ? 'Portrait' : 'Landscape'}`);
+    params.set('attributes[Plik plakatu]', imageUrl);
+    return `https://cycling-app.myshopify.com/cart/${SHOPIFY_VARIANT_ID}:1?${params.toString()}`;
+  };
+
   const handleCheckout = async () => {
     if (submitting) return;
     setErrorMsg(null);
     setSubmitting(true);
     try {
-      // 1) Ask backend to compose and store the poster image on S3
+      // 1) Ask backend to generate poster, upload to S3 and (optionally) build cart_url
       const backgroundType = config.layout === 'map' ? 'map' : (config.layout === 'photo' ? 'image' : 'solid');
       const isDark =
         config.backgroundColor === '#000000' ||
@@ -106,29 +130,34 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
         credentials: 'include',
         body: JSON.stringify({
           activity_id: activityId,
-          title: config.title,
-          line_color: config.accentColor,
-          solid_color: config.backgroundColor,
+          title:        config.title,
+          line_color:   config.accentColor,
+          solid_color:  config.backgroundColor,
           background_type: backgroundType,
-          style_id: styleId,
-          // Photo-layout specific – only sent when layout === 'photo'
+          style_id:        styleId,
+          // Activity metadata — used by backend to build cart_url attributes
+          overlay_data: config.overlayData,
+          layout:       config.layout,
+          format:       config.format,
+          orientation:  config.orientation,
+          // Photo-layout specific
           ...(backgroundType === 'image' && photoUrl ? {
-            photo_url: photoUrl,
-            overlay_data: config.overlayData,
-            photo_stats_visible: photoStatsVisible,
-            photo_visible_stats: photoVisibleStats
+            photo_url:            photoUrl,
+            photo_stats_visible:  photoStatsVisible,
+            photo_visible_stats:  photoVisibleStats
               ? [...photoVisibleStats]
               : ['distance', 'speed', 'date'],
           } : {}),
-        })
+        }),
       });
       const genData = await genRes.json().catch(() => ({}));
       if (!genRes.ok || !genData.image_url) {
         throw new Error(genData.error || `Render failed (${genRes.status})`);
       }
 
-      // 2) Redirect to Shopify cart with the poster image
-      const cartUrl = `https://cycling-app.myshopify.com/cart/${SHOPIFY_VARIANT_ID}:1?properties[Poster Image]=${encodeURIComponent(genData.image_url)}&properties[Title]=${encodeURIComponent(config.title || '')}`;
+      // 2) Redirect to Shopify cart
+      //    Prefer cart_url built by the backend; fall back to building it here.
+      const cartUrl = genData.cart_url ?? buildCartUrl(genData.image_url);
       window.location.href = cartUrl;
     } catch (e: any) {
       console.error('Confirm/create product failed', e);
