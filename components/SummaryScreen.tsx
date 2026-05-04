@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
-const SHOPIFY_VARIANT_ID = '53104872849750';
 import { logModule, useLogMount } from '../src/debug';
 logModule('components/SummaryScreen.tsx module');
 import { Button } from './ui/button';
@@ -79,43 +78,11 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  /**
-   * Builds a Shopify cart URL from a poster S3 image URL.
-   * Uses attributes[] format so all data is visible in Shopify order notes.
-   * Called as a fallback if the backend does not return a ready-made cart_url.
-   */
-  const buildCartUrl = (imageUrl: string): string => {
-    const layoutLabel: Record<string, string> = {
-      map: 'Mapa',
-      photo: 'Zdjęcie',
-      minimal: 'Minimal',
-    };
-    const params = new URLSearchParams();
-    params.set('attributes[Nazwa aktywności]', config.title || '');
-    if (config.overlayData?.date)      params.set('attributes[Data]',          config.overlayData.date);
-    if (config.overlayData?.distance)  params.set('attributes[Dystans]',        config.overlayData.distance);
-    if (config.overlayData?.duration)  params.set('attributes[Czas]',           config.overlayData.duration);
-    if (config.overlayData?.speed)     params.set('attributes[Tempo]',          config.overlayData.speed);
-    if (config.overlayData?.elevation) params.set('attributes[Przewyższenie]',   config.overlayData.elevation);
-    params.set('attributes[Styl mapy]',    layoutLabel[config.layout] ?? config.layout);
-    params.set('attributes[Format]',       `${config.format} · ${config.orientation === 'vertical' ? 'Portrait' : 'Landscape'}`);
-    params.set('attributes[Plik plakatu]', imageUrl);
-    return `https://cycling-app.myshopify.com/cart/${SHOPIFY_VARIANT_ID}:1?${params.toString()}`;
-  };
-
   const handleCheckout = async () => {
     if (submitting) return;
     setErrorMsg(null);
     setSubmitting(true);
     try {
-      // 1) Ask backend to generate poster, upload to S3 and (optionally) build cart_url
-      const backgroundType = config.layout === 'map' ? 'map' : (config.layout === 'photo' ? 'image' : 'solid');
-      const isDark =
-        config.backgroundColor === '#000000' ||
-        config.backgroundColor.toLowerCase() === '#111111';
-      const styleId = isDark ? 'mapbox/dark-v11' : 'mapbox/light-v11';
-
-      // Attach Strava token so backend can fetch activity streams
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       try {
         const authData = JSON.parse(localStorage.getItem('strava_auth') || '{}');
@@ -124,44 +91,27 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
         }
       } catch (_e) { /* ignore */ }
 
-      const genRes = await fetch(`${BACKEND_URL}/api/save_poster_composed`, {
+      const res = await fetch(`${BACKEND_URL}/apps/poster/generate-and-checkout`, {
         method: 'POST',
         headers,
         credentials: 'include',
         body: JSON.stringify({
-          activity_id: activityId,
-          title:        config.title,
-          line_color:   config.accentColor,
-          solid_color:  config.backgroundColor,
-          background_type: backgroundType,
-          style_id:        styleId,
-          // Activity metadata — used by backend to build cart_url attributes
-          overlay_data: config.overlayData,
-          layout:       config.layout,
-          format:       config.format,
-          orientation:  config.orientation,
-          // Photo-layout specific
-          ...(backgroundType === 'image' && photoUrl ? {
-            photo_url:            photoUrl,
-            photo_stats_visible:  photoStatsVisible,
-            photo_visible_stats:  photoVisibleStats
-              ? [...photoVisibleStats]
-              : ['distance', 'speed', 'date'],
-          } : {}),
+          activity_name: config.title,
+          activity_date: config.overlayData?.date ?? '',
+          distance_km:   config.overlayData?.distance ?? '',
+          map_style:     config.layout,
         }),
       });
-      const genData = await genRes.json().catch(() => ({}));
-      if (!genRes.ok || !genData.image_url) {
-        throw new Error(genData.error || `Render failed (${genRes.status})`);
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.checkout_url) {
+        throw new Error(data.error || `Request failed (${res.status})`);
       }
 
-      // 2) Redirect to Shopify cart
-      //    Prefer cart_url built by the backend; fall back to building it here.
-      const cartUrl = genData.cart_url ?? buildCartUrl(genData.image_url);
-      window.location.href = cartUrl;
+      window.location.href = data.checkout_url;
     } catch (e: any) {
-      console.error('Confirm/create product failed', e);
-      setErrorMsg(e?.message || 'Failed to create product');
+      console.error('Checkout failed', e);
+      setErrorMsg(e?.message || 'Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
     }
