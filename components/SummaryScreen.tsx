@@ -109,6 +109,7 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
         throw new Error(data.error || `Request failed (${res.status})`);
       }
 
+      // Zamiast osadzać checkout w iframe, wykonujemy pełny redirect przeglądarki.
       window.location.href = data.checkout_url;
     } catch (e: any) {
       console.error('Checkout failed', e);
