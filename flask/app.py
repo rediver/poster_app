@@ -36,16 +36,25 @@ STRAVA_REDIRECT_URI = os.getenv("STRAVA_REDIRECT_URI")
 MAPBOX_ACCESS_TOKEN = os.getenv("MAPBOX_ACCESS_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")  # e.g. postgres://user:pass@host:5432/db
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+# Accept FRONTEND_URL or FRONTEND_ORIGIN (render.yaml uses FRONTEND_ORIGIN)
+FRONTEND_URL = (
+    os.getenv("FRONTEND_URL")
+    or os.getenv("FRONTEND_ORIGIN")
+    or "http://localhost:5173"
+)
+# Support comma-separated list of allowed origins, e.g. "https://a.com,https://b.com"
+ALLOWED_ORIGINS = [o.strip() for o in FRONTEND_URL.split(",") if o.strip()]
 
-# Enable CORS for the frontend, allowing cookies (session) to be sent
+# Enable CORS for the frontend, allowing cookies (session) to be sent.
+# /apps/* covers the Shopify-proxy-style endpoints (e.g. /apps/poster/generate-and-checkout).
 CORS(
     app,
     supports_credentials=True,
     resources={
-        r"/api/*": {"origins": [FRONTEND_URL], "allow_headers": ["Authorization", "Content-Type"]},
-        r"/healthz": {"origins": [FRONTEND_URL]},
-        r"/strava/*": {"origins": [FRONTEND_URL], "allow_headers": ["Authorization", "Content-Type"]},
+        r"/api/*":   {"origins": ALLOWED_ORIGINS, "allow_headers": ["Authorization", "Content-Type"]},
+        r"/apps/*":  {"origins": ALLOWED_ORIGINS, "allow_headers": ["Authorization", "Content-Type"]},
+        r"/strava/*":{"origins": ALLOWED_ORIGINS, "allow_headers": ["Authorization", "Content-Type"]},
+        r"/healthz": {"origins": ALLOWED_ORIGINS},
     },
 )
 
