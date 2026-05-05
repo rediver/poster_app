@@ -105,11 +105,12 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.checkout_url) {
+      const checkoutUrl = typeof data.checkout_url === 'string' ? data.checkout_url : '';
+      if (!res.ok || !checkoutUrl) {
         throw new Error(data.error || `Request failed (${res.status})`);
       }
 
-      window.location.href = data.checkout_url;
+      window.location.href = checkoutUrl;
     } catch (e: any) {
       console.error('Checkout failed', e);
       setErrorMsg(e?.message || 'Something went wrong. Please try again.');
