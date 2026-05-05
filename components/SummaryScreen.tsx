@@ -100,6 +100,7 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
           activity_date: config.overlayData?.date ?? '',
           distance_km:   config.overlayData?.distance ?? '',
           map_style:     config.layout,
+          activity_id:   activityId,
         }),
       });
 

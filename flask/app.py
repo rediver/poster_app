@@ -1021,8 +1021,149 @@ def admin_posters():
     ]
     return jsonify({"posters": posters})
 
+# ── Shopify checkout helpers ──────────────────────────────────────────────────
+
+def _build_checkout_url(activity_name, activity_date, distance_km, map_style, poster_url=''):
+    """
+    Return a Shopify checkout URL.
+    - If SHOPIFY_STOREFRONT_TOKEN is configured → Storefront API checkoutCreate mutation
+    - Otherwise → cart permalink (no token needed, works immediately)
+    """
+    VARIANT_ID = os.getenv('SHOPIFY_VARIANT_ID', '53104872849750')
+    raw = SHOPIFY_SHOP_URL or 'cycling-app.myshopify.com'
+    store = raw.replace('https://', '').replace('http://', '').rstrip('/')
+    sf_token = os.getenv('SHOPIFY_STOREFRONT_TOKEN', '')
+
+    if sf_token:
+        endpoint = f'https://{store}/api/2024-01/graphql.json'
+        mutation = """
+        mutation checkoutCreate($input: CheckoutCreateInput!) {
+          checkoutCreate(input: $input) {
+            checkout { webUrl }
+            checkoutUserErrors { code field message }
+          }
+        }"""
+        variables = {
+            'input': {
+                'lineItems': [
+                    {'variantId': f'gid://shopify/ProductVariant/{VARIANT_ID}', 'quantity': 1}
+                ],
+                'customAttributes': [
+                    {'key': 'Nazwa aktywno\u015bci', 'value': activity_name},
+                    {'key': 'Data',             'value': activity_date},
+                    {'key': 'Dystans',          'value': distance_km},
+                    {'key': 'Styl mapy',        'value': map_style},
+                    {'key': 'Plik plakatu',     'value': poster_url},
+                ],
+            }
+        }
+        try:
+            r = requests.post(
+                endpoint,
+                json={'query': mutation, 'variables': variables},
+                headers={
+                    'X-Shopify-Storefront-Access-Token': sf_token,
+                    'Content-Type': 'application/json',
+                },
+                timeout=15,
+            )
+            data = r.json()
+            node = (data.get('data') or {}).get('checkoutCreate', {}).get('checkout')
+            if node and node.get('webUrl'):
+                logger.info(f'Storefront API checkout: {node["webUrl"][:80]}')
+                return node['webUrl']
+            errs = (data.get('data') or {}).get('checkoutCreate', {}).get('checkoutUserErrors', [])
+            logger.warning(f'Storefront checkoutCreate errors: {errs}')
+        except Exception as exc:
+            logger.warning(f'Storefront API failed ({exc}), falling back to cart URL')
+
+    # Cart permalink fallback (no token required)
+    attrs = {
+        'attributes[Nazwa aktywno\u015bci]': activity_name,
+        'attributes[Data]':              activity_date,
+        'attributes[Dystans]':           distance_km,
+        'attributes[Styl mapy]':         map_style,
+    }
+    if poster_url:
+        attrs['attributes[Plik plakatu]'] = poster_url
+    qs = _urlparse.urlencode(attrs, quote_via=_urlparse.quote)
+    return f'https://{store}/cart/{VARIANT_ID}:1?{qs}'
+
+
+@app.route('/apps/poster/generate-and-checkout', methods=['POST'])
+def generate_and_checkout():
+    """
+    One-step generate & checkout.
+
+    Request body (JSON):
+        activity_name  - activity title
+        activity_date  - date string
+        distance_km    - distance string ("42.3 km")
+        map_style      - "map" | "photo" | "minimal"
+        activity_id    - Strava activity ID (used for poster generation)
+
+    Response:
+        { "checkout_url": "https://..." }
+    """
+    try:
+        payload       = request.get_json(force=True) or {}
+        activity_name = str(payload.get('activity_name') or '').strip()
+        activity_date = str(payload.get('activity_date') or '').strip()
+        distance_km   = str(payload.get('distance_km')   or '').strip()
+        map_style     = str(payload.get('map_style')      or 'map').strip()
+        activity_id   = str(payload.get('activity_id')    or '').strip()
+
+        auth_header  = request.headers.get('Authorization', '')
+        access_token = None
+        if auth_header.lower().startswith('bearer '):
+            access_token = auth_header.split(' ', 1)[1].strip()
+
+        # ── Step 1: Generate poster & upload to S3 ───────────────────────────
+        # Delegate to save_poster_composed via the Flask test client so we
+        # don't duplicate the ~300-line composition code.
+        poster_url = ''
+        if activity_id:
+            try:
+                hdrs = {}
+                if access_token:
+                    hdrs['Authorization'] = f'Bearer {access_token}'
+                with app.test_client() as tc:
+                    resp = tc.post(
+                        '/api/save_poster_composed',
+                        json={
+                            'activity_id':     activity_id,
+                            'title':           activity_name,
+                            'background_type': 'map' if map_style == 'map' else 'solid',
+                            'style_id':        'mapbox/light-v11',
+                        },
+                        headers=hdrs,
+                    )
+                    result = resp.get_json() or {}
+                    poster_url = result.get('image_url', '')
+                    if not poster_url:
+                        logger.warning(f'save_poster_composed returned no image_url: {result}')
+            except Exception as exc:
+                logger.warning(f'Poster generation skipped (checkout continues): {exc}')
+
+        # ── Step 2: Build Shopify checkout URL ───────────────────────────────
+        checkout_url = _build_checkout_url(
+            activity_name=activity_name,
+            activity_date=activity_date,
+            distance_km=distance_km,
+            map_style=map_style,
+            poster_url=poster_url,
+        )
+        logger.info(f'generate_and_checkout → {checkout_url[:100]}')
+        return jsonify({'checkout_url': checkout_url})
+
+    except Exception:
+        logger.exception('generate_and_checkout error')
+        return jsonify({'error': 'Internal server error'}), 500
+
+
 # ---------- Photo upload ----------
 import uuid as _uuid
+import urllib.parse as _urlparse
 
 ALLOWED_PHOTO_TYPES = {
     'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
