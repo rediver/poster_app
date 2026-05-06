@@ -114,7 +114,7 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
       if (!res.ok || !checkoutUrl) {
         throw new Error(data.error || `Request failed (${res.status})`);
       }
-
+      console.log('checkout_url received:', checkoutUrl);
       window.location.href = checkoutUrl;
     } catch (e: any) {
       console.error('Checkout failed', e);
