@@ -1145,14 +1145,42 @@ def generate_and_checkout():
             except Exception as exc:
                 logger.warning(f'Poster generation skipped (checkout continues): {exc}')
 
-        # ── Step 2: Build Shopify checkout URL ───────────────────────────────
-        checkout_url = _build_checkout_url(
-            activity_name=activity_name,
-            activity_date=activity_date,
-            distance_km=distance_km,
-            map_style=map_style,
-            poster_url=poster_url,
+        # ── Step 2: Create Shopify cart via Storefront API ───────────────────
+        query = """
+        mutation cartCreate($input: CartInput!) {
+          cartCreate(input: $input) {
+            cart { checkoutUrl }
+            userErrors { field message }
+          }
+        }
+        """
+
+        variables = {
+            "input": {
+                "lines": [{
+                    "quantity": 1,
+                    "merchandiseId": "gid://shopify/ProductVariant/53104872849750",
+                    "attributes": [
+                        {"key": "Nazwa aktywności", "value": activity_name},
+                        {"key": "Dystans", "value": distance_km},
+                        {"key": "Styl mapy", "value": map_style},
+                        {"key": "Plik plakatu", "value": poster_url},
+                    ],
+                }]
+            }
+        }
+
+        response = requests.post(
+            "https://cycling-app.myshopify.com/api/2024-01/graphql.json",
+            json={"query": query, "variables": variables},
+            headers={
+                "X-Shopify-Storefront-Access-Token": "ee5cee91045e58763b5b5e4dea642264",
+                "Content-Type": "application/json",
+            },
         )
+
+        print("SHOPIFY:", response.status_code, response.text)
+        checkout_url = response.json()["data"]["cartCreate"]["cart"]["checkoutUrl"]
         logger.info(f'generate_and_checkout → {checkout_url[:100]}')
         return jsonify({'checkout_url': checkout_url})
 
