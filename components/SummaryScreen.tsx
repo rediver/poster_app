@@ -40,6 +40,11 @@ interface PosterConfig {
 
 type LatLng = [number, number];
 
+interface GenerateAndCheckoutResponse {
+  checkout_url?: string;
+  error?: string;
+}
+
 interface SummaryScreenProps {
   config: PosterConfig;
   trackPoints: LatLng[];
@@ -104,7 +109,7 @@ export function SummaryScreen({ config, trackPoints, onBack, activityId, photoUr
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({})) as GenerateAndCheckoutResponse;
       const checkoutUrl = typeof data.checkout_url === 'string' ? data.checkout_url : '';
       if (!res.ok || !checkoutUrl) {
         throw new Error(data.error || `Request failed (${res.status})`);
